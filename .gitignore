@@ -1,2 +1,26 @@
+# Video files
 video.segments.json
 video.ts
+
+# Downloaded/temporary HTML files
+*.html.bak
+gm.html
+*.downloaded.html
+
+# Directories
+downloads/
+temp/
+__pycache__/
+
+# Environment and secrets
+.env
+.env.local
+*.key
+*.pem
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

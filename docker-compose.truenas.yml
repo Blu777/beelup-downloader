@@ -1,10 +1,26 @@
 services:
   beelup-downloader:
+    # Opción 1: Usar imagen pre-construida de Docker Hub
     image: blu777/beelup-downloader:latest
+
+    # Opción 2: Construir desde GitHub (descomenta las siguientes líneas y comenta 'image:')
+    # build:
+    #   context: https://github.com/Blu777/beelup-downloader.git
+    #   dockerfile: Dockerfile
+
     container_name: beelup-downloader
     ports:
       - "5000:5000"
     volumes:
+      # IMPORTANTE: Ajusta estas rutas según tu configuración de TrueNAS
+      # Formato: /mnt/<pool>/<dataset>/<carpeta>:/app/<destino>
       - /mnt/tank/beelup/downloads:/app/downloads
       - /mnt/tank/beelup/temp:/app/temp
     restart: unless-stopped
+
+    # Opcional: Recursos limitados
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 2G

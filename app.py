@@ -44,7 +44,7 @@ def _extract_beelup_id(raw: str) -> str | None:
         return m.group(1) if m else None
     return _safe_id(raw)
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 

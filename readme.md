@@ -70,9 +70,40 @@ http://localhost:5000
 
 ### Opción 3: TrueNAS/NAS
 
+**Prerequisitos en TrueNAS:**
+
+- Crear datasets para almacenamiento (ej: `/mnt/tank/beelup/downloads` y `/mnt/tank/beelup/temp`)
+- Tener Docker instalado (TrueNAS SCALE)
+
+**Paso 1: Ajustar rutas de volúmenes**
+
+Edita `docker-compose.truenas.yml` y ajusta las rutas según tu configuración:
+
+```yaml
+volumes:
+  - /mnt/<tu_pool>/<tu_dataset>/downloads:/app/downloads
+  - /mnt/<tu_pool>/<tu_dataset>/temp:/app/temp
+```
+
+**Paso 2: Elegir método de imagen**
+
+- **Método A - Imagen pre-construida** (recomendado): Usa la línea `image: blu777/beelup-downloader:latest`
+- **Método B - Construir desde GitHub**: Comenta `image:` y descomenta las líneas de `build:`
+
+**Paso 3: Desplegar**
+
 ```bash
 docker-compose -f docker-compose.truenas.yml up -d
 ```
+
+**Paso 4: Verificar**
+
+```bash
+docker ps
+docker logs beelup-downloader
+```
+
+Accede desde: `http://<IP_TRUENAS>:5000`
 
 ## Modo de Uso
 
@@ -162,4 +193,4 @@ Este proyecto es de código abierto y está disponible bajo una licencia permisi
 
 ---
 
-**Versión**: 1.1.0
+**Versión**: 1.2.0
