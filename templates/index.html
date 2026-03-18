@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beelup Downloader</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Camera selector styles */
+        .camera-selector {
+            margin-top: 1.2rem;
+            animation: fadeIn 0.3s ease;
+        }
+        .camera-selector label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            margin-bottom: 0.6rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .camera-buttons {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+        .cam-btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.05);
+            color: rgba(255,255,255,0.75);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .cam-btn:hover {
+            background: rgba(99,179,237,0.15);
+            border-color: rgba(99,179,237,0.5);
+            color: #fff;
+        }
+        .cam-btn.selected {
+            background: rgba(99,179,237,0.25);
+            border-color: #63b3ed;
+            color: #fff;
+        }
+        .camera-info {
+            margin-top: 0.5rem;
+            font-size: 0.78rem;
+            color: rgba(255,255,255,0.45);
+            font-style: italic;
+        }
+        /* Download-all button */
+        .download-all-btn {
+            margin-top: 0.8rem;
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(168, 85, 247, 0.5);
+            background: rgba(168, 85, 247, 0.12);
+            color: #d8b4fe;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .download-all-btn:hover {
+            background: rgba(168, 85, 247, 0.25);
+            border-color: #a855f7;
+            color: #fff;
+        }
+        .download-all-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        /* Extra gap between ZIP button and main submit */
+        #submitBtn {
+            margin-top: 0.6rem;
+        }
+        .detecting-msg {
+            font-size: 0.85rem;
+            color: rgba(255,255,255,0.5);
+            margin-top: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .detecting-msg .spinner-sm {
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-top-color: #63b3ed;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <div class="container">
+        <header>
+            <div class="logo-wrapper">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download-cloud"><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path></svg>
+            </div>
+            <h1>B-Downloader</h1>
+            <p>Descarga tus partidos de Beelup fácilmente en formato .ts</p>
+        </header>
+
+        <main class="card glassmorphism">
+            <form id="downloadForm">
+                <div class="input-group">
+                    <label for="url_input">Enlace del video o ID del partido</label>
+                    <input type="text" id="url_input" name="url_input" placeholder="Ej: https://beelup.com/player.php?id=8890989" required autocomplete="off">
+                </div>
+
+                <!-- Camera detection feedback -->
+                <div id="detectingMsg" class="detecting-msg hidden">
+                    <span class="spinner-sm"></span>
+                    <span>Detectando cámaras disponibles...</span>
+                </div>
+
+                <!-- Camera selector (shown only when multi-camera) -->
+                <div id="cameraSelector" class="camera-selector hidden">
+                    <label>🎥 Seleccioná la cámara a descargar</label>
+                    <div id="cameraButtons" class="camera-buttons"></div>
+                    <p class="camera-info">El partido tiene múltiples cámaras. Podés descargarlas por separado.</p>
+                    <!-- Download ALL button -->
+                    <button type="button" id="downloadAllBtn" class="download-all-btn">
+                        📦 Descargar TODAS las cámaras (ZIP)
+                    </button>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn primary-btn">
+                    <span>Preparar Descarga</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                </button>
+            </form>
+
+            <div id="errorBox" class="error-box hidden"></div>
+
+            <div id="progressContainer" class="progress-container hidden">
+                <div class="status-header">
+                    <h3 id="statusText">Descargando...</h3>
+                    <span id="percentageText">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div id="progressBar" class="progress-bar-fill"></div>
+                </div>
+            </div>
+
+            <div id="downloadActionContainer" class="action-container hidden">
+                <p class="success-msg">¡Video descargado y procesado con éxito!</p>
+                <a href="#" id="finalDownloadLink" class="btn success-btn">
+                    <span>Guardar Archivo en mi PC</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                </a>
+            </div>
+        </main>
+        
+        <footer>
+            <p>El archivo final estará en formato Video Transport Stream (.ts). Puedes reproducirlo con VLC.</p>
+            <p style="margin-top:0.5rem">
+                <a href="/player" style="color:#a78bfa;font-weight:600;text-decoration:none;">🎬 Abrir Reproductor de Partidos →</a>
+            </p>
+            <p style="margin-top:1.5rem; font-size:0.70rem; color:rgba(255,255,255,0.3);">v{{ version }}</p>
+        </footer>
+    </div>
+
+    <script>
+        const form               = document.getElementById('downloadForm');
+        const submitBtn          = document.getElementById('submitBtn');
+        const urlInput           = document.getElementById('url_input');
+        const errorBox           = document.getElementById('errorBox');
+        const progressContainer  = document.getElementById('progressContainer');
+        const progressBar        = document.getElementById('progressBar');
+        const percentageText     = document.getElementById('percentageText');
+        const statusText         = document.getElementById('statusText');
+        const actionContainer    = document.getElementById('downloadActionContainer');
+        const finalDownloadLink  = document.getElementById('finalDownloadLink');
+        const cameraSelector     = document.getElementById('cameraSelector');
+        const cameraButtons      = document.getElementById('cameraButtons');
+        const detectingMsg       = document.getElementById('detectingMsg');
+        const downloadAllBtn     = document.getElementById('downloadAllBtn');
+
+        let pollingInterval    = null;
+        let allPollingInterval = null;
+        let selectedCamara     = "";   // "" = single camera / no param
+        let detectedCameras    = [];
+        let lastDetectedId     = "";   // avoid re-detecting the same ID
+
+        // ──────────────────────────────────────────
+        // Extract Beelup ID from raw input
+        // ──────────────────────────────────────────
+        function extractBeelupId(raw) {
+            if (raw.includes("beelup.com")) {
+                const m = raw.match(/id=(\w+)/);
+                return m ? m[1] : null;
+            }
+            return raw.trim() || null;
+        }
+
+        // ──────────────────────────────────────────
+        // Detect cameras automatically while typing (debounced)
+        // ──────────────────────────────────────────
+        let detectDebounce = null;
+
+        // On paste: fire detection immediately (after 100ms so the field is populated)
+        urlInput.addEventListener('paste', () => {
+            clearTimeout(detectDebounce);
+            detectDebounce = setTimeout(() => triggerDetect(urlInput.value.trim()), 100);
+        });
+
+        // On manual typing: debounce 800ms
+        urlInput.addEventListener('input', () => {
+            clearTimeout(detectDebounce);
+            const raw = urlInput.value.trim();
+            if (!raw) {
+                hideCameraSelector();
+                detectingMsg.classList.add('hidden');
+                lastDetectedId = "";
+                return;
+            }
+            detectDebounce = setTimeout(() => triggerDetect(raw), 800);
+        });
+
+        async function triggerDetect(raw) {
+            const id = extractBeelupId(raw);
+            if (!id || id === lastDetectedId) return;
+
+            lastDetectedId = id;
+            hideCameraSelector();
+            detectingMsg.classList.remove('hidden');
+
+            try {
+                const res  = await fetch(`/api/cameras/${id}`);
+                const data = await res.json();
+                detectedCameras = data.cameras || [];
+            } catch (e) {
+                detectedCameras = [];
+            } finally {
+                detectingMsg.classList.add('hidden');
+            }
+
+            if (detectedCameras.length > 1) {
+                renderCameraSelector(detectedCameras);
+            } else {
+                selectedCamara = detectedCameras.length === 1 ? detectedCameras[0].id : "";
+            }
+        }
+
+        function renderCameraSelector(cameras) {
+            cameraButtons.innerHTML = "";
+            selectedCamara = cameras[0].id; // default to first
+
+            cameras.forEach((cam, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'cam-btn' + (idx === 0 ? ' selected' : '');
+                btn.textContent = cam.label;
+                btn.dataset.camId = cam.id;
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    selectedCamara = cam.id;
+                });
+                cameraButtons.appendChild(btn);
+            });
+
+            cameraSelector.classList.remove('hidden');
+        }
+
+        function hideCameraSelector() {
+            cameraSelector.classList.add('hidden');
+            cameraButtons.innerHTML = "";
+            selectedCamara = "";
+            detectedCameras = [];
+        }
+
+        // ──────────────────────────────────────────
+        // Download ALL cameras (ZIP)
+        // ──────────────────────────────────────────
+        downloadAllBtn.addEventListener('click', async () => {
+            const raw = urlInput.value.trim();
+            if (!raw || detectedCameras.length === 0) return;
+
+            // Reset UI
+            errorBox.classList.add('hidden');
+            progressContainer.classList.remove('hidden');
+            actionContainer.classList.add('hidden');
+            submitBtn.disabled = true;
+            downloadAllBtn.disabled = true;
+            progressBar.style.width = "0%";
+            percentageText.innerText = "0%";
+            statusText.innerText = "Iniciando descarga de todas las cámaras...";
+
+            try {
+                const res = await fetch('/api/download_all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url_or_id: raw, cameras: detectedCameras })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Error al iniciar");
+
+                const beelupId = data.id;
+                if (allPollingInterval) clearInterval(allPollingInterval);
+                allPollingInterval = setInterval(() => checkProgressAll(beelupId), 1000);
+            } catch (err) {
+                showError(err.message);
+                submitBtn.disabled = false;
+                downloadAllBtn.disabled = false;
+                progressContainer.classList.add('hidden');
+            }
+        });
+
+        async function checkProgressAll(beelupId) {
+            try {
+                const res  = await fetch(`/api/progress_all/${beelupId}`);
+                const data = await res.json();
+
+                if (data.status === "error") {
+                    clearInterval(allPollingInterval);
+                    showError("Error en descarga múltiple: " + (data.error || ""));
+                    submitBtn.disabled = false;
+                    downloadAllBtn.disabled = false;
+                    progressContainer.classList.add('hidden');
+                    return;
+                }
+
+                if (data.status === "comprimiendo (ZIP)") {
+                    statusText.innerText = "Comprimiendo archivos en ZIP...";
+                    progressBar.style.width = "99%";
+                    percentageText.innerText = "99%";
+                }
+
+                if (data.status === "downloading") {
+                    const prog = Math.min(data.progress || 0, 98);
+                    progressBar.style.width = `${prog}%`;
+                    percentageText.innerText = `${Math.round(prog)}%`;
+                    const camLabel = data.current_cam || "";
+                    statusText.innerText = camLabel
+                        ? `Descargando ${camLabel}...`
+                        : "Descargando cámaras...";
+                }
+
+                if (data.status === "completed") {
+                    clearInterval(allPollingInterval);
+                    progressBar.style.width = "100%";
+                    percentageText.innerText = "100%";
+                    statusText.innerText = "¡ZIP listo!";
+                    submitBtn.disabled = false;
+                    downloadAllBtn.disabled = false;
+
+                    setTimeout(() => {
+                        actionContainer.classList.remove('hidden');
+                        finalDownloadLink.href = `/api/file_zip/${beelupId}`;
+                        finalDownloadLink.querySelector('span').innerText = "Guardar ZIP en mi PC";
+                    }, 500);
+                }
+            } catch (err) {
+                console.error("Error polling all progress", err);
+            }
+        }
+
+        // ──────────────────────────────────────────
+        // Form submit
+        // ──────────────────────────────────────────
+        const SUBMIT_HTML = `<span>Preparar Descarga</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>`;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Reset UI
+            errorBox.classList.add('hidden');
+            progressContainer.classList.add('hidden');
+            actionContainer.classList.add('hidden');
+            errorBox.innerText = "";
+
+            const url_or_id = urlInput.value.trim();
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = "<span>Iniciando...</span>";
+
+            try {
+                const res = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url_or_id, camara: selectedCamara })
+                });
+                const data = await res.json();
+
+                if (!res.ok) {
+                    throw new Error(data.error || "Error desconocido al procesar la solicitud");
+                }
+
+                const beelupId = data.id;
+                const camara   = data.camara || "";
+
+                // Start polling
+                progressContainer.classList.remove('hidden');
+                submitBtn.innerHTML = "<span>Descargando...</span>";
+                progressBar.style.width = "0%";
+                percentageText.innerText = "0%";
+
+                if (pollingInterval) clearInterval(pollingInterval);
+                pollingInterval = setInterval(() => checkProgress(beelupId, camara), 1000);
+
+            } catch (error) {
+                showError(error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = SUBMIT_HTML;
+            }
+        });
+
+        // ──────────────────────────────────────────
+        // Progress polling
+        // ──────────────────────────────────────────
+        async function checkProgress(beelupId, camara) {
+            try {
+                const camaraParam = camara ? `?camara=${camara}` : "";
+                const res  = await fetch(`/api/progress/${beelupId}${camaraParam}`);
+                const data = await res.json();
+
+                if (data.status === "error") {
+                    clearInterval(pollingInterval);
+                    showError("Ocurrió un error en el servidor: " + (data.error || ""));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = SUBMIT_HTML;
+                    progressContainer.classList.add('hidden');
+                    return;
+                }
+
+                if (data.status === "ensamblando") {
+                    statusText.innerText = "Ensamblando segmentos...";
+                    progressBar.style.width = "99%";
+                    percentageText.innerText = "99%";
+                }
+
+                if (data.status === "remuxeando (ffmpeg)") {
+                    statusText.innerText = "Convirtiendo a MP4 (ffmpeg)...";
+                    progressBar.style.width = "99%";
+                    percentageText.innerText = "99%";
+                }
+
+                if (data.status === "downloading") {
+                    const prog = Math.min(data.progress || 0, 99);
+                    progressBar.style.width = `${prog}%`;
+                    percentageText.innerText = `${Math.round(prog)}%`;
+                    statusText.innerText = "Descargando (puede demorar unos minutos)...";
+                }
+
+                if (data.status === "completed") {
+                    clearInterval(pollingInterval);
+                    progressBar.style.width = "100%";
+                    percentageText.innerText = "100%";
+                    statusText.innerText = "¡Completado!";
+
+                    submitBtn.innerHTML = SUBMIT_HTML;
+                    submitBtn.disabled = false;
+
+                    // Show final download link
+                    const camaraParam = camara ? `?camara=${camara}` : "";
+                    setTimeout(() => {
+                        actionContainer.classList.remove('hidden');
+                        finalDownloadLink.href = `/api/file/${beelupId}${camaraParam}`;
+                    }, 500);
+                }
+            } catch (err) {
+                console.error("Error polling progress", err);
+            }
+        }
+
+        function showError(msg) {
+            errorBox.innerText = msg;
+            errorBox.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

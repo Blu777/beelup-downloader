@@ -1,0 +1,18 @@
+JSON keys:
+hay_eventos
+alto
+ancho
+bitrate
+disciplina
+pais
+complejo
+segmentos
+
+Key Values:
+hay_eventos = True
+alto = 1024
+ancho = 1024
+bitrate = 1024
+disciplina = FUTBOL 8
+pais = ARGENTINA
+complejo = MEGAFUTBOL - SAN JUSTO

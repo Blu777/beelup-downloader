@@ -1,0 +1,10 @@
+services:
+  beelup-downloader:
+    image: blu777/beelup-downloader:latest
+    container_name: beelup-downloader
+    ports:
+      - "5000:5000"
+    volumes:
+      - /mnt/tank/beelup/downloads:/app/downloads
+      - /mnt/tank/beelup/temp:/app/temp
+    restart: unless-stopped

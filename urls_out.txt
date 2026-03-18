@@ -1,0 +1,131 @@
+[OK] https://beelup.com/partido/26745803
+  No dates found.
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <div id="div-fecha" class="mb-3 div-seleccion"></div>
+  Line: render_select("fechas", "fecha", []);
+  Line: fecha: $("#dselect-fecha").val(),
+  Line: if (p_accion == "fechas") {
+  Line: "\");' data-live-search='false' data-style='btn btn-lg btn-light' data-width='100%' hchdata-size='7' data-dropup-auto='false' title='Elegí la fecha'>";
+  Line: if (p_json[i].valor == localStorage.getItem("preferencia_fecha")) {
+  Line: render_select("fechas", "fecha", []);
+  Line: render_select("fechas", "fecha", []);
+  Line: crear_dropdown("fechas", "fecha");
+  Line: } else if (p_id == "fecha") {
+  Line: localStorage.setItem("preferencia_fecha", obj.val());
+  Line: fecha = $("#dselect-fecha").val();
+  Line: url = "pedir-partido?complejo=" + complejo + "&cancha=" + cancha + "&fecha=" + fecha + "&hora=" + hora;
+  Line: $("#dselect-fecha").change();
+[OK] https://beelup.com/26745803
+  No dates found.
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <div id="div-fecha" class="mb-3 div-seleccion"></div>
+  Line: render_select("fechas", "fecha", []);
+  Line: fecha: $("#dselect-fecha").val(),
+  Line: if (p_accion == "fechas") {
+  Line: "\");' data-live-search='false' data-style='btn btn-lg btn-light' data-width='100%' hchdata-size='7' data-dropup-auto='false' title='Elegí la fecha'>";
+  Line: if (p_json[i].valor == localStorage.getItem("preferencia_fecha")) {
+  Line: render_select("fechas", "fecha", []);
+  Line: render_select("fechas", "fecha", []);
+  Line: crear_dropdown("fechas", "fecha");
+  Line: } else if (p_id == "fecha") {
+  Line: localStorage.setItem("preferencia_fecha", obj.val());
+  Line: fecha = $("#dselect-fecha").val();
+  Line: url = "pedir-partido?complejo=" + complejo + "&cancha=" + cancha + "&fecha=" + fecha + "&hora=" + hora;
+  Line: $("#dselect-fecha").change();
+[OK] https://beelup.com/watch?v=26745803
+  No dates found.
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <!-- Siente la adrenalina de nuevo. Selecciona el club, la cancha, la fecha y listo! -->
+  Line: <div id="div-fecha" class="mb-3 div-seleccion"></div>
+  Line: render_select("fechas", "fecha", []);
+  Line: fecha: $("#dselect-fecha").val(),
+  Line: if (p_accion == "fechas") {
+  Line: "\");' data-live-search='false' data-style='btn btn-lg btn-light' data-width='100%' hchdata-size='7' data-dropup-auto='false' title='Elegí la fecha'>";
+  Line: if (p_json[i].valor == localStorage.getItem("preferencia_fecha")) {
+  Line: render_select("fechas", "fecha", []);
+  Line: render_select("fechas", "fecha", []);
+  Line: crear_dropdown("fechas", "fecha");
+  Line: } else if (p_id == "fecha") {
+  Line: localStorage.setItem("preferencia_fecha", obj.val());
+  Line: fecha = $("#dselect-fecha").val();
+  Line: url = "pedir-partido?complejo=" + complejo + "&cancha=" + cancha + "&fecha=" + fecha + "&hora=" + hora;
+  Line: $("#dselect-fecha").change();
+[OK] https://beelup.com/partido?id=26745803
+  Dates: {'2026-02-17', '2000-01-01'}
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+  Line: var g_ignorar_timeupdate = false;
+  Line: var inicio_video = '2026-02-17 18:15:00.000000';
+  Line: inicio_video = new Date(inicio_video).getTime();
+  Line: //si la fecha de inicio es menor a la actual menos 1 dia el video es viejo: 86400000 = 1 dia =  24*60*60*1000
+  Line: if (inicio_video < (new Date().getTime() - 86400000))
+  Line: //de "https://cacheusxl31.do.revivitupartido.com/hls/videoscloud/20240604/grun0104/grun0104.cam.36.20240604174500.20240604175000.93518.file2.nots..mp4/segment-83-v1-a1.ts" obtener solo el cacheus
+  Line: // Recorro segmentos en g_video_playlist_json y busco el campo fecha_actual segun el p_segundo
+  Line: function buscar_segmento_en_playlist_con_fecha(p_fecha)
+  Line: // Recorro segmentos en g_video_playlist_json y busco el campo fecha_actual segun el p_segundo
+  Line: // console.log(p_fecha, g_video_playlist_json.segmentos[i].fecha_actual)
+  Line: // if (p_fecha<=g_video_playlist_json.segmentos[i].fecha_actual)
+  Line: if (g_video_playlist_json.segmentos[i].fecha_actual>=p_fecha)
+  Line: v_timeupdate_contador=0;
+  Line: v_timeupdate_contador=0;
+  Line: // v_desde = fecha_a_segundos(v_desde);
+  Line: v_fecha_inicio_video_completo = '2026-02-17 18:15:00.000000';
+  Line: var m1 = moment.utc(v_fecha_inicio_video_completo, "YYYY-MM-DD HH:mm:ss.SSS");
+  Line: var m2 = moment.utc(v_segmento.fecha_actual, "YYYY-MM-DD HH:mm:ss.SSS");
+  Line: // Calculo diferencia en segundos de la fecha_actual con la fecha_inicio del video
+  Line: console.log("tiempo forzado por ser aplausos", v_segmento.fecha_actual, v_fecha_inicio_video_completo, v_diferencia);
+  Line: , fecha_inicio: '2026-02-17 18:15:00.000000'
+  Line: v_texto = "Por favor *Beelup* dame el video de " + p_titulo + " a las " + segundos_a_fecha(p_inicio) + " #1-" + resultado.hash +" @"+ "ar";
+  Line: var d = new Date();
+  Line: var date = new Date(null);
+  Line: date.setSeconds(v.tiempo); // specify value for SECONDS here
+  Line: var minutos = date.toISOString().substr(14, 5);
+  Line: var horas = date.toISOString().substr(11, 2);
+  Line: var v_tiempo_marca = segundos_a_fecha(v.tiempo);
+  Line: function segundos_a_fecha(p_segundos)
+  Line: // var m = moment.utc(segmento.fecha_actual, "YYYY-MM-DD HH:mm:ss.SSS");
+  Line: var m = moment.utc(segmento.fecha_actual, "YYYY-MM-DD HH:mm:ss");
+  Line: console.log("Error en fecha. Segmento:", segmento);
+  Line: return ""; // hch porque no se puede convertir la fecha
+  Line: //var m = moment.utc(segmento.fecha_actual, "YYYY-MM-DD HH:mm:ss.SSS");
+  Line: function segundos_a_fecha_completa(p_segundos)
+  Line: var m = moment.utc(segmento.fecha_actual, "YYYY-MM-DD HH:mm:ss.SSS");
+  Line: function fecha_a_segundos(p_fecha)
+  Line: var segmento = buscar_segmento_en_playlist_con_fecha(p_fecha);
+  Line: v_html = v_html + '<a class="btn btn-dark w-100 mb-3" onclick="compartir_jugada();" href="javascript://">Compartir jugada de las ' + segundos_a_fecha(g_tiempo) + '</a>';
+  Line: v_url = v_url + '&m=' + escape(unescape(encodeURIComponent(g_prefijo_compartir_whatsapp + " " + segundos_a_fecha(0))));
+  Line: v_url = v_url + '&m=' + escape(unescape(encodeURIComponent(g_prefijo_compartir_whatsapp + " " + segundos_a_fecha(g_tiempo))));
+  Line: var g_footer_youtube = '<a href="javascript://" onclick="anuncioYoutube();"><img src="images/footer_youtube/youtube_20240403124910_MINIATURA WEB.jpg?2" alt="YouTube Image" class="w-100"></a>';
+  Line: //var g_footer_youtube = '<a href="javascript://" onclick="anuncioYoutube();"><img src="images/mejores.jugadas.20240223.720.png?2" alt="YouTube Image" class="w-100"></a>';
+  Line: g_video_start_loading = new Date().getTime();
+  Line: v_date = new Date().getTime();
+  Line: var diff = (v_date - g_video_start_loading) / 1000;
+  Line: // console.log("finish_loading: " + v_date);
+  Line: //de "https://cacheusxl31.do.revivitupartido.com/hls/videoscloud/20240604/grun0104/grun0104.cam.36.20240604174500.20240604175000.93518.file2.nots..mp4/segment-83-v1-a1.ts" obtener solo el cacheus
+  Line: var v_timeupdate_contador = 0;
+  Line: $("#div_hora").html(segundos_a_fecha(g_tiempo));
+  Line: v_timeupdate_contador = 0;
+  Line: // $("#" + g_video_tag_id).on("timeupdate", function (e) {
+  Line: g_video_js.on("timeupdate", function (e) {
+  Line: if (g_ignorar_timeupdate)
+  Line: g_ignorar_timeupdate = false;
+  Line: // console.log("ignoro el timeupdate");
+  Line: console.log("ignoro el timeupdate porque estoy haciendo slide");
+  Line: console.log("ignoro el timeupdate porque esto cargando un src");
+  Line: sessionStorage.setItem('26745803-fecha', segundos_a_fecha_completa(g_tiempo) );
+  Line: // console.log("v_timeupdate_contador", v_timeupdate_contador);
+  Line: v_timeupdate_contador++;
+  Line: if (v_timeupdate_contador>3)
+  Line: return segundos_a_fecha(value)
+  Line: v_timeupdate_contador=0;
+[Error] https://beelup.com/app/partido.php?id=26745803: HTTP Error 302: The HTTP server returned a redirect error that would lead to an infinite loop.
+The last 30x error message was:
+Found

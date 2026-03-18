@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Reproductor – B-Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #0d1117;
+        --surface: #161b22;
+        --surf2: #21262d;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #6366f1;
+        --accent2: #a855f7;
+        --text: #e6edf3;
+        --muted: rgba(230, 237, 243, 0.45);
+      }
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Outfit", sans-serif;
+        overflow: hidden;
+      }
+
+      /* ═══════════════════════════════════════════
+           GALLERY MODE  (/player  — no ?id param)
+        ═══════════════════════════════════════════ */
+      #galleryView {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Header */
+      .g-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0 2rem;
+        height: 60px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .g-logo {
+        font-size: 1.1rem;
+        font-weight: 800;
+      }
+      .g-logo span {
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      .g-subtitle {
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .g-header a.back {
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: var(--muted);
+        text-decoration: none;
+        padding: 0.3rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        transition: all 0.2s;
+      }
+      .g-header a.back:hover {
+        color: var(--text);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+
+      /* Body */
+      .g-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 2rem;
+      }
+      .g-section-title {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 1rem;
+      }
+
+      /* Match grid */
+      .match-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1rem;
+      }
+
+      /* Card */
+      .match-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        overflow: hidden;
+        cursor: pointer;
+        transition:
+          transform 0.2s,
+          border-color 0.2s,
+          box-shadow 0.2s;
+        position: relative;
+      }
+      .match-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(99, 102, 241, 0.5);
+        box-shadow: 0 8px 32px rgba(99, 102, 241, 0.18);
+      }
+
+      /* Card thumbnail area */
+      .card-thumb {
+        height: 130px;
+        background: linear-gradient(
+          135deg,
+          rgba(99, 102, 241, 0.15),
+          rgba(168, 85, 247, 0.1)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        position: relative;
+        border-bottom: 1px solid var(--border);
+      }
+      .card-thumb .cam-count-badge {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: rgba(99, 102, 241, 0.85);
+        backdrop-filter: blur(6px);
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 0.2rem 0.5rem;
+        border-radius: 5px;
+        color: #fff;
+        letter-spacing: 0.04em;
+      }
+
+      /* Card body */
+      .card-body {
+        padding: 0.9rem 1rem;
+      }
+      .card-id {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text);
+        margin-bottom: 0.3rem;
+      }
+      .card-meta {
+        font-size: 0.75rem;
+        color: var(--muted);
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+      }
+
+      /* Play button */
+      .card-play-btn {
+        margin-top: 0.85rem;
+        width: 100%;
+        padding: 0.55rem;
+        border: none;
+        border-radius: 9px;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        color: #fff;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition:
+          opacity 0.2s,
+          transform 0.1s;
+      }
+      .card-play-btn:hover {
+        opacity: 0.9;
+        transform: scale(1.02);
+      }
+      .card-play-btn:active {
+        transform: scale(0.98);
+      }
+
+      /* Empty / loading */
+      .g-empty {
+        grid-column: 1/-1;
+        text-align: center;
+        padding: 4rem 1rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.8;
+      }
+      .g-empty a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      /* Download links in gallery */
+      .dl-row {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+      }
+      .card-dl-btn {
+        flex: 1;
+        text-align: center;
+        padding: 0.4rem;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+      }
+      .card-dl-btn:hover {
+        background: rgba(99, 102, 241, 0.2);
+        border-color: var(--accent);
+        color: #fff;
+      }
+
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+      }
+
+      /* ═══════════════════════════════════════════
+           PLAYER MODE  (/player?id=ID)
+        ═══════════════════════════════════════════ */
+      #playerView {
+        display: none;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Video fills everything */
+      .video-wrapper {
+        flex: 1;
+        background: #000;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Zoom layer */
+      .zoom-wrap {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        isolation: isolate;
+        transform: translateZ(0);
+        touch-action: none;
+      }
+      .zoom-wrap > video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transform-origin: center center;
+        will-change: transform;
+        pointer-events: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      /* Drag overlay */
+      .drag-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        pointer-events: none;
+      }
+
+      /* Floating controls */
+      .ctrl-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 20;
+        padding: 0.6rem 1rem 0.8rem;
+        background: linear-gradient(
+          to top,
+          rgba(0, 0, 0, 0.9) 0%,
+          transparent 100%
+        );
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
+      .video-wrapper:hover .ctrl-bar,
+      .ctrl-bar:focus-within {
+        opacity: 1;
+      }
+
+      .progress-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .time-str {
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.7);
+        min-width: 100px;
+        white-space: nowrap;
+      }
+
+      input[type="range"].scrubber {
+        flex: 1;
+        height: 4px;
+        appearance: none;
+        -webkit-appearance: none;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        cursor: pointer;
+        outline: none;
+      }
+      input[type="range"].scrubber::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: #fff;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      input[type="range"].scrubber:hover::-webkit-slider-thumb {
+        transform: scale(1.35);
+      }
+
+      .btn-row {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+      }
+      .ctrl-btn {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.8);
+        cursor: pointer;
+        font-size: 1.05rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 6px;
+        transition:
+          color 0.15s,
+          background 0.15s;
+        font-family: inherit;
+      }
+      .ctrl-btn:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .ctrl-btn.play-btn {
+        font-size: 1.3rem;
+      }
+
+      input[type="range"].vol-slider {
+        width: 72px;
+        height: 3px;
+        appearance: none;
+        -webkit-appearance: none;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        cursor: pointer;
+        outline: none;
+      }
+      input[type="range"].vol-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: #fff;
+        cursor: pointer;
+      }
+      .spacer {
+        flex: 1;
+      }
+      .zoom-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.55);
+        padding: 0.15rem 0.4rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+      }
+
+      /* Reset zoom btn (in ctrl) */
+      .reset-z {
+        font-size: 0.78rem !important;
+      }
+
+      /* Speed control button */
+      .speed-btn {
+        font-size: 0.75rem !important;
+        font-weight: 700;
+        min-width: 45px;
+        padding: 0.25rem 0.5rem !important;
+      }
+
+      /* Speed menu */
+      .speed-menu {
+        position: absolute;
+        bottom: 100%;
+        right: 0;
+        margin-bottom: 0.5rem;
+        background: rgba(0, 0, 0, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 0.4rem;
+        display: none;
+        flex-direction: column;
+        gap: 0.2rem;
+        min-width: 80px;
+      }
+      .speed-menu.visible {
+        display: flex;
+      }
+      .speed-option {
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.7);
+        padding: 0.4rem 0.6rem;
+        cursor: pointer;
+        border-radius: 5px;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: all 0.15s;
+        text-align: center;
+      }
+      .speed-option:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+      }
+      .speed-option.active {
+        background: rgba(99, 102, 241, 0.3);
+        color: #fff;
+      }
+
+      /* Double-tap feedback */
+      .tap-feedback {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 3rem;
+        color: rgba(255, 255, 255, 0.9);
+        pointer-events: none;
+        z-index: 30;
+        animation: tapFade 0.6s ease-out forwards;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .tap-feedback.left {
+        left: 15%;
+      }
+      .tap-feedback.right {
+        right: 15%;
+      }
+      .tap-feedback .tap-time {
+        font-size: 1rem;
+        font-weight: 700;
+      }
+      @keyframes tapFade {
+        0% {
+          opacity: 0;
+          transform: translateY(-50%) scale(0.5);
+        }
+        20% {
+          opacity: 1;
+          transform: translateY(-50%) scale(1.1);
+        }
+        100% {
+          opacity: 0;
+          transform: translateY(-50%) scale(1);
+        }
+      }
+
+      /* Zoom reset btn (hover top-right) */
+      .zoom-reset-corner {
+        position: absolute;
+        top: 0.7rem;
+        right: 0.7rem;
+        z-index: 25;
+        padding: 0.28rem 0.6rem;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: rgba(255, 255, 255, 0.8);
+        border-radius: 7px;
+        cursor: pointer;
+        display: none;
+      }
+
+      /* Camera tab bar */
+      .cam-bar {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.5rem 1rem;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .cam-bar.visible {
+        display: flex;
+      }
+      .cam-bar-lbl {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+      .cam-tab {
+        padding: 0.3rem 0.75rem;
+        border-radius: 7px;
+        border: 1.5px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-family: "Outfit", sans-serif;
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .cam-tab:hover {
+        background: rgba(99, 102, 241, 0.12);
+        border-color: rgba(99, 102, 241, 0.4);
+        color: var(--text);
+      }
+      .cam-tab.active {
+        background: rgba(99, 102, 241, 0.2);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .cam-bar .mtitle {
+        margin-left: auto;
+        font-size: 0.72rem;
+        color: var(--muted);
+      }
+      .cam-bar a.close-btn {
+        margin-left: 0.5rem;
+        font-size: 0.72rem;
+        color: var(--muted);
+        text-decoration: none;
+        padding: 0.25rem 0.6rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+      .cam-bar a.close-btn:hover {
+        color: var(--text);
+        border-color: rgba(255, 255, 255, 0.25);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ═══ GALLERY VIEW ═══ -->
+    <div id="galleryView">
+      <header class="g-header">
+        <div class="g-logo">B-<span>Downloader</span></div>
+        <span class="g-subtitle"
+          >Biblioteca de partidos
+          <span style="font-size: 0.65rem; color: rgba(255, 255, 255, 0.2)"
+            >(v{{ version }})</span
+          ></span
+        >
+        <a href="/" class="back">← Descargar</a>
+      </header>
+      <div class="g-body">
+        <div class="g-section-title">Partidos descargados</div>
+        <div class="match-grid" id="matchGrid">
+          <div class="g-empty">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem">⏳</div>
+            Cargando partidos...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PLAYER VIEW ═══ -->
+    <div id="playerView">
+      <div class="video-wrapper" id="videoWrapper">
+        <div class="zoom-wrap" id="zoomWrap">
+          <video
+            id="videoPlayer"
+            preload="auto"
+            draggable="false"
+            playsinline
+            muted
+          ></video>
+          <div class="drag-overlay" id="dragOverlay"></div>
+        </div>
+
+        <!-- Floating controls -->
+        <div class="ctrl-bar" id="ctrlBar">
+          <div class="progress-row">
+            <span class="time-str" id="timeStr">0:00 / 0:00</span>
+            <input
+              type="range"
+              class="scrubber"
+              id="scrubber"
+              min="0"
+              max="1000"
+              value="0"
+              step="1"
+            />
+          </div>
+          <div class="btn-row">
+            <button class="ctrl-btn play-btn" id="playBtn">▶</button>
+            <button class="ctrl-btn" id="muteBtn">�</button>
+            <input
+              type="range"
+              class="vol-slider"
+              id="volSlider"
+              min="0"
+              max="1"
+              step="0.02"
+              value="1"
+            />
+            <div class="spacer"></div>
+            <div style="position: relative">
+              <button class="ctrl-btn speed-btn" id="speedBtn">1×</button>
+              <div class="speed-menu" id="speedMenu">
+                <button class="speed-option" data-speed="0.5">0.5×</button>
+                <button class="speed-option active" data-speed="1">1×</button>
+                <button class="speed-option" data-speed="2">2×</button>
+                <button class="speed-option" data-speed="4">4×</button>
+              </div>
+            </div>
+            <span
+              class="zoom-badge"
+              id="zoomBadge"
+              style="display: none"
+            ></span>
+            <button
+              class="ctrl-btn reset-z"
+              id="resetZBtn"
+              style="display: none"
+            >
+              ✕ zoom
+            </button>
+            <button class="ctrl-btn" id="fsBtn">⛶</button>
+          </div>
+        </div>
+
+        <button class="zoom-reset-corner" id="zoomCorner">✕ Reset zoom</button>
+      </div>
+
+      <div class="cam-bar" id="camBar">
+        <span class="cam-bar-lbl">📷 Cámara:</span>
+        <div id="camTabs" style="display: contents"></div>
+        <span class="mtitle" id="matchTitle"></span>
+        <a
+          href="#"
+          id="playerDlBtn"
+          class="close-btn"
+          style="color: #a855f7; border-color: rgba(168, 85, 247, 0.4)"
+          download
+          >⬇ Descargar cámara</a
+        >
+        <a href="/player" class="close-btn">← Biblioteca</a>
+      </div>
+    </div>
+
+    <script>
+      // ── elements ────────────────────────────────────────────────
+      const galleryView = document.getElementById("galleryView");
+      const playerView = document.getElementById("playerView");
+      const matchGrid = document.getElementById("matchGrid");
+
+      const videoPlayer = document.getElementById("videoPlayer");
+      const zoomWrap = document.getElementById("zoomWrap");
+      const dragOverlay = document.getElementById("dragOverlay");
+      const ctrlBar = document.getElementById("ctrlBar");
+      const playBtn = document.getElementById("playBtn");
+      const muteBtn = document.getElementById("muteBtn");
+      const volSlider = document.getElementById("volSlider");
+      const scrubber = document.getElementById("scrubber");
+      const timeStr = document.getElementById("timeStr");
+      const fsBtn = document.getElementById("fsBtn");
+      const zoomBadge = document.getElementById("zoomBadge");
+      const resetZBtn = document.getElementById("resetZBtn");
+      const zoomCorner = document.getElementById("zoomCorner");
+      const camBar = document.getElementById("camBar");
+      const camTabs = document.getElementById("camTabs");
+      const matchTitle = document.getElementById("matchTitle");
+      const speedBtn = document.getElementById("speedBtn");
+      const speedMenu = document.getElementById("speedMenu");
+
+      // ── zoom / pan ───────────────────────────────────────────────
+      let scale = 1,
+        panX = 0,
+        panY = 0;
+      let dragX = 0,
+        dragY = 0,
+        panX0 = 0,
+        panY0 = 0,
+        ptrId = null;
+      const MIN_Z = 1,
+        MAX_Z = 8;
+
+      function applyT() {
+        videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
+        videoPlayer.style.transformOrigin = "center center";
+        const z = scale > 1.01;
+        dragOverlay.style.pointerEvents = z ? "all" : "none";
+        dragOverlay.style.cursor = z
+          ? ptrId !== null
+            ? "grabbing"
+            : "grab"
+          : "";
+        zoomBadge.style.display = z ? "" : "none";
+        resetZBtn.style.display = z ? "" : "none";
+        zoomCorner.style.display = z ? "" : "none";
+        if (z) zoomBadge.textContent = scale.toFixed(1) + "×";
+      }
+      function setZ(ns, cx = 0, cy = 0) {
+        ns = Math.min(MAX_Z, Math.max(MIN_Z, ns));
+        panX = (panX - cx / scale) * (ns / scale) + cx / ns;
+        panY = (panY - cy / scale) * (ns / scale) + cy / ns;
+        scale = ns;
+        if (scale <= MIN_Z) {
+          panX = 0;
+          panY = 0;
+        }
+        applyT();
+      }
+      function resetZ() {
+        scale = 1;
+        panX = 0;
+        panY = 0;
+        applyT();
+      }
+
+      document.getElementById("videoWrapper").addEventListener(
+        "wheel",
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const r = zoomWrap.getBoundingClientRect();
+          setZ(
+            scale * (e.deltaY > 0 ? 0.85 : 1.18),
+            e.clientX - r.left - r.width / 2,
+            e.clientY - r.top - r.height / 2,
+          );
+        },
+        { passive: false },
+      );
+
+      dragOverlay.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        ptrId = e.pointerId;
+        dragOverlay.setPointerCapture(e.pointerId);
+        dragX = e.clientX;
+        dragY = e.clientY;
+        panX0 = panX;
+        panY0 = panY;
+        dragOverlay.style.cursor = "grabbing";
+      });
+      dragOverlay.addEventListener("pointermove", (e) => {
+        if (ptrId === null || e.pointerId !== ptrId) return;
+        panX = panX0 + (e.clientX - dragX) / scale;
+        panY = panY0 + (e.clientY - dragY) / scale;
+        applyT();
+      });
+      dragOverlay.addEventListener("pointerup", (e) => {
+        if (e.pointerId === ptrId) {
+          ptrId = null;
+          dragOverlay.style.cursor = "grab";
+        }
+      });
+      dragOverlay.addEventListener("pointercancel", () => {
+        ptrId = null;
+        dragOverlay.style.cursor = "grab";
+      });
+      resetZBtn.addEventListener("click", resetZ);
+      zoomCorner.addEventListener("click", resetZ);
+
+      // ── custom controls ─────────────────────────────────────────
+      let isScrubbing = false;
+      const fmt = (s) => {
+        s = Math.floor(s || 0);
+        const h = Math.floor(s / 3600),
+          m = Math.floor((s % 3600) / 60),
+          ss = s % 60;
+        return h
+          ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
+          : `${m}:${String(ss).padStart(2, "0")}`;
+      };
+
+      videoPlayer.addEventListener("timeupdate", () => {
+        if (isScrubbing) return;
+        scrubber.value = videoPlayer.duration
+          ? (videoPlayer.currentTime / videoPlayer.duration) * 1000
+          : 0;
+        timeStr.textContent = `${fmt(videoPlayer.currentTime)} / ${fmt(videoPlayer.duration)}`;
+      });
+      videoPlayer.addEventListener("play", () => {
+        playBtn.textContent = "⏸";
+      });
+      videoPlayer.addEventListener("pause", () => {
+        playBtn.textContent = "▶";
+      });
+      videoPlayer.addEventListener("ended", () => {
+        playBtn.textContent = "↺";
+      });
+      videoPlayer.addEventListener("volumechange", () => {
+        muteBtn.textContent = videoPlayer.muted ? "🔇" : "🔊";
+        volSlider.value = videoPlayer.muted ? 0 : videoPlayer.volume;
+      });
+
+      playBtn.addEventListener("click", () => {
+        if (videoPlayer.ended) {
+          videoPlayer.currentTime = 0;
+          videoPlayer.play();
+        } else if (videoPlayer.paused) videoPlayer.play();
+        else videoPlayer.pause();
+      });
+      scrubber.addEventListener("mousedown", () => (isScrubbing = true));
+      scrubber.addEventListener("input", () => {
+        if (videoPlayer.duration) {
+          videoPlayer.currentTime =
+            (scrubber.value / 1000) * videoPlayer.duration;
+          timeStr.textContent = `${fmt(videoPlayer.currentTime)} / ${fmt(videoPlayer.duration)}`;
+        }
+      });
+      scrubber.addEventListener("mouseup", () => (isScrubbing = false));
+      volSlider.addEventListener("input", () => {
+        videoPlayer.volume = volSlider.value;
+        videoPlayer.muted = volSlider.value == 0;
+      });
+      muteBtn.addEventListener("click", () => {
+        videoPlayer.muted = !videoPlayer.muted;
+        if (!videoPlayer.muted) volSlider.value = videoPlayer.volume || 0.8;
+      });
+      fsBtn.addEventListener("click", () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else
+          document
+            .getElementById("videoWrapper")
+            .requestFullscreen()
+            .catch(() => {});
+      });
+      document.addEventListener("fullscreenchange", () => {
+        fsBtn.textContent = document.fullscreenElement ? "✕" : "⛶";
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.target.tagName === "INPUT") return;
+        if (e.code === "Space") {
+          e.preventDefault();
+          playBtn.click();
+        }
+        if (e.code === "KeyF") fsBtn.click();
+        if (e.code === "Escape" && scale > 1) resetZ();
+      });
+
+      // ── playback speed ───────────────────────────────────────────
+      speedBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        speedMenu.classList.toggle("visible");
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!speedBtn.contains(e.target) && !speedMenu.contains(e.target)) {
+          speedMenu.classList.remove("visible");
+        }
+      });
+
+      document.querySelectorAll(".speed-option").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const speed = parseFloat(btn.dataset.speed);
+          videoPlayer.playbackRate = speed;
+          speedBtn.textContent = speed + "×";
+          document
+            .querySelectorAll(".speed-option")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          speedMenu.classList.remove("visible");
+        });
+      });
+
+      // ── double-tap gestures (YouTube style) ──────────────────────
+      let lastTapTime = 0;
+      let tapTimer = null;
+
+      function showTapFeedback(side, seconds) {
+        const existing = document.querySelector(".tap-feedback");
+        if (existing) existing.remove();
+
+        const feedback = document.createElement("div");
+        feedback.className = `tap-feedback ${side}`;
+        feedback.innerHTML = `
+        <div style="font-size:3.5rem;">${side === "left" ? "⏪" : "⏩"}</div>
+        <div class="tap-time">${seconds} segundos</div>
+    `;
+        document.getElementById("videoWrapper").appendChild(feedback);
+
+        setTimeout(() => feedback.remove(), 600);
+      }
+
+      zoomWrap.addEventListener("click", (e) => {
+        if (scale > 1.01) return;
+
+        const now = Date.now();
+        const rect = zoomWrap.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const halfWidth = rect.width / 2;
+
+        if (now - lastTapTime < 300) {
+          clearTimeout(tapTimer);
+
+          if (clickX < halfWidth) {
+            videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
+            showTapFeedback("left", 10);
+          } else {
+            videoPlayer.currentTime = Math.min(
+              videoPlayer.duration,
+              videoPlayer.currentTime + 10,
+            );
+            showTapFeedback("right", 10);
+          }
+
+          lastTapTime = 0;
+        } else {
+          lastTapTime = now;
+          tapTimer = setTimeout(() => {
+            lastTapTime = 0;
+          }, 300);
+        }
+      });
+
+      // ── pinch-to-zoom (mobile) ───────────────────────────────────
+      let initialPinchDistance = 0;
+      let initialPinchScale = 1;
+      let activeTouches = new Map();
+
+      function getTouchDistance(t1, t2) {
+        const dx = t2.clientX - t1.clientX;
+        const dy = t2.clientY - t1.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      function getTouchCenter(t1, t2) {
+        return {
+          x: (t1.clientX + t2.clientX) / 2,
+          y: (t1.clientY + t2.clientY) / 2,
+        };
+      }
+
+      zoomWrap.addEventListener(
+        "touchstart",
+        (e) => {
+          Array.from(e.changedTouches).forEach((touch) => {
+            activeTouches.set(touch.identifier, touch);
+          });
+
+          if (activeTouches.size === 2) {
+            e.preventDefault();
+            const touches = Array.from(activeTouches.values());
+            initialPinchDistance = getTouchDistance(touches[0], touches[1]);
+            initialPinchScale = scale;
+          }
+        },
+        { passive: false },
+      );
+
+      zoomWrap.addEventListener(
+        "touchmove",
+        (e) => {
+          Array.from(e.changedTouches).forEach((touch) => {
+            activeTouches.set(touch.identifier, touch);
+          });
+
+          if (activeTouches.size === 2) {
+            e.preventDefault();
+            const touches = Array.from(activeTouches.values());
+            const currentDistance = getTouchDistance(touches[0], touches[1]);
+            const center = getTouchCenter(touches[0], touches[1]);
+            const rect = zoomWrap.getBoundingClientRect();
+
+            const scaleMultiplier = currentDistance / initialPinchDistance;
+            const newScale = initialPinchScale * scaleMultiplier;
+
+            setZ(
+              newScale,
+              center.x - rect.left - rect.width / 2,
+              center.y - rect.top - rect.height / 2,
+            );
+          }
+        },
+        { passive: false },
+      );
+
+      zoomWrap.addEventListener("touchend", (e) => {
+        Array.from(e.changedTouches).forEach((touch) => {
+          activeTouches.delete(touch.identifier);
+        });
+
+        if (activeTouches.size < 2) {
+          initialPinchDistance = 0;
+        }
+      });
+
+      zoomWrap.addEventListener("touchcancel", (e) => {
+        Array.from(e.changedTouches).forEach((touch) => {
+          activeTouches.delete(touch.identifier);
+        });
+        initialPinchDistance = 0;
+      });
+
+      // ── play a camera ────────────────────────────────────────────
+      function playCamera(cam, isMulti, keepTime = false) {
+        const t = keepTime ? videoPlayer.currentTime : 0;
+        videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
+        videoPlayer.load();
+        if (isMulti) {
+          scale = 2;
+          panX = 0;
+          panY = 0;
+          applyT();
+        } else resetZ();
+        videoPlayer.addEventListener(
+          "loadedmetadata",
+          () => {
+            if (t > 0 && t < videoPlayer.duration) videoPlayer.currentTime = t;
+            // First unmute after user gesture on first play
+            videoPlayer
+              .play()
+              .then(() => {
+                // Try to unmute silently after autoplay started
+                videoPlayer.muted = false;
+              })
+              .catch(() => {
+                // Autoplay blocked — stay muted, user can unmute
+              });
+          },
+          { once: true },
+        );
+      }
+
+      // ── camera tabs ──────────────────────────────────────────────
+      function renderCamTabs(match) {
+        camTabs.innerHTML = "";
+        const isMulti = match.cameras.length > 1;
+        match.cameras.forEach((cam, idx) => {
+          const btn = document.createElement("button");
+          btn.className = "cam-tab" + (idx === 0 ? " active" : "");
+          btn.textContent = cam.label;
+
+          const updateDlBtn = (c) => {
+            const camParam = c.cam_id
+              ? `?camara=${encodeURIComponent(c.cam_id)}`
+              : "";
+            const dlBtn = document.getElementById("playerDlBtn");
+            if (dlBtn) dlBtn.href = `/api/file/${match.id}${camParam}`;
+          };
+          if (idx === 0) updateDlBtn(cam);
+
+          btn.addEventListener("click", () => {
+            document
+              .querySelectorAll(".cam-tab")
+              .forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            playCamera(cam, isMulti, true);
+            updateDlBtn(cam);
+          });
+          camTabs.appendChild(btn);
+        });
+        let matchText = `Partido #${match.id}`;
+        if (match.title) {
+          matchText = match.date
+            ? `${match.date}: ${match.title}`
+            : match.title;
+        } else if (match.date) {
+          matchText = `${match.date} (ID: ${match.id})`;
+        }
+        matchTitle.textContent = matchText;
+        camBar.classList.toggle("visible", match.cameras.length > 0);
+      }
+
+      // ── gallery ──────────────────────────────────────────────────
+      async function loadGallery() {
+        try {
+          const res = await fetch("/api/videos");
+          const data = await res.json();
+          renderGallery(data.matches || []);
+        } catch {
+          matchGrid.innerHTML =
+            '<div class="g-empty">Error cargando partidos</div>';
+        }
+      }
+
+      function renderGallery(matches) {
+        if (!matches.length) {
+          matchGrid.innerHTML = `<div class="g-empty">
+            <div style="font-size:2.5rem;margin-bottom:.75rem">📂</div>
+            No hay partidos descargados.<br>
+            <a href="/">Descargar partidos →</a>
+        </div>`;
+          return;
+        }
+        matchGrid.innerHTML = "";
+        matches.forEach((match) => {
+          const isMulti = match.cameras.length > 1;
+          const totalMB = match.cameras.reduce((s, c) => s + c.size_mb, 0);
+          const sz =
+            totalMB > 1024
+              ? `${(totalMB / 1024).toFixed(2)} GB`
+              : `${totalMB.toFixed(0)} MB`;
+
+          let dlBtnsHtml = "";
+          match.cameras.forEach((c) => {
+            const camParam = c.cam_id
+              ? `?camara=${encodeURIComponent(c.cam_id)}`
+              : "";
+            dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
+          });
+
+          const dateStr = match.date
+            ? `📅 ${match.date} (ID: ${match.id})`
+            : `Partido #${match.id}`;
+
+          let matchText = `Partido #${match.id}`;
+          if (match.title) {
+            matchText = match.date
+              ? `📅 ${match.date}<br/>${match.title}`
+              : match.title;
+          } else if (match.date) {
+            matchText = `📅 ${match.date} (ID: ${match.id})`;
+          }
+
+          const thumbStyle = match.cover_url
+            ? `style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('${match.cover_url}') center/cover no-repeat;"`
+            : "";
+
+          const card = document.createElement("div");
+          card.className = "match-card";
+          card.innerHTML = `
+            <div class="card-thumb" ${thumbStyle}>
+                ${isMulti ? "🎥" : "📹"}
+                <span class="cam-count-badge">${match.cameras.length} cámara${match.cameras.length > 1 ? "s" : ""}</span>
+            </div>
+            <div class="card-body">
+                <div class="card-id" style="min-height:2.6rem; margin-bottom:0.5rem; line-height:1.3">${matchText}</div>
+                <div class="card-meta">
+                    <span>${isMulti ? match.cameras.map((c) => c.label).join(" · ") : "Cámara única"}</span>
+                    <span>${sz} total</span>
+                </div>
+                <button class="card-play-btn">▶ Reproducir</button>
+                <div class="dl-row">${dlBtnsHtml}</div>
+            </div>`;
+          card.addEventListener("click", () =>
+            window.open(`/player?id=${match.id}`, "_blank"),
+          );
+          matchGrid.appendChild(card);
+        });
+      }
+
+      // ── single-match mode ────────────────────────────────────────
+      async function initPlayer(id) {
+        galleryView.style.display = "none";
+        playerView.style.display = "flex";
+
+        const res = await fetch("/api/videos");
+        const data = await res.json();
+        const match = (data.matches || []).find((m) => m.id === id);
+        if (!match) return;
+
+        renderCamTabs(match);
+        playCamera(match.cameras[0], match.cameras.length > 1, false);
+      }
+
+      // ── bootstrap ────────────────────────────────────────────────
+      const urlId = new URLSearchParams(location.search).get("id");
+      if (urlId) {
+        initPlayer(urlId);
+      } else {
+        loadGallery();
+      }
+    </script>
+  </body>
+</html>

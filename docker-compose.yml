@@ -1,0 +1,10 @@
+services:
+  beelup-downloader:
+    build: .
+    container_name: beelup-downloader
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./downloads:/app/downloads
+      - ./temp:/app/temp
+    restart: unless-stopped
