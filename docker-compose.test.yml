@@ -4,7 +4,7 @@ services:
     image: ${DOCKER_USERNAME:-blu777}/beelup-downloader:test
     container_name: beelup-downloader-test
     ports:
-      - "5000:5000"
+      - "5001:5000"
     volumes:
       # IMPORTANTE: Ajusta estas rutas según tu configuración de TrueNAS
       # Formato: /mnt/<pool>/<dataset>/<carpeta>:/app/<destino>
