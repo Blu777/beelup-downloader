@@ -12,8 +12,8 @@ services:
       - /mnt/tank/beelup-test/temp:/app/temp
     environment:
       - PYTHONUNBUFFERED=1
-      - ADMIN_PIN=${ADMIN_PIN:-}
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - ADMIN_PIN=
+      - SECRET_KEY=change-me-in-production
     restart: unless-stopped
 
     # Opcional: Recursos limitados para entorno de prueba
