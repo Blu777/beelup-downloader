@@ -992,8 +992,8 @@
       let clipInTime  = null;
       let clipOutTime = null;
       let clipRecording = false;
-      let clipMediaRecorder = null;
-      let clipChunks = [];
+      let _currentClipFilename = null;
+      let _clipAbortController = null;
 
       clipToggleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1036,8 +1036,8 @@
         clipOutBadge.classList.remove("set");
         clipRecBtn.disabled = true;
         clipProgress.textContent = "";
-        if (clipRecording) {
-          clipMediaRecorder && clipMediaRecorder.stop();
+        if (clipRecording && _clipAbortController) {
+          _clipAbortController.abort();
           clipRecording = false;
         }
       });
@@ -1045,77 +1045,64 @@
       clipRecBtn.addEventListener("click", async () => {
         if (clipRecording) return;
         if (clipInTime === null || clipOutTime === null || clipOutTime <= clipInTime) return;
+        if (!_currentClipFilename) return;
 
-        const duration = clipOutTime - clipInTime;
-        clipProgress.textContent = "Preparando…";
+        clipProgress.textContent = "Generando clip MP4…";
         clipRecBtn.disabled = true;
         clipRecording = true;
-        clipChunks = [];
 
-        // Seek to start
-        videoPlayer.pause();
-        videoPlayer.currentTime = clipInTime;
+        _clipAbortController = new AbortController();
 
-        await new Promise((res) => {
-          videoPlayer.addEventListener("seeked", res, { once: true });
-        });
+        const url = `/api/clip/${encodeURIComponent(_currentClipFilename)}` +
+          `?start=${clipInTime.toFixed(3)}&end=${clipOutTime.toFixed(3)}`;
 
-        // Capture stream from video element
-        let stream;
         try {
-          stream = videoPlayer.captureStream
-            ? videoPlayer.captureStream()
-            : videoPlayer.mozCaptureStream();
-        } catch (err) {
-          clipProgress.textContent = "Error: captureStream no soportado en este navegador.";
-          clipRecording = false;
-          clipRecBtn.disabled = false;
-          return;
-        }
+          const res = await fetch(url, { signal: _clipAbortController.signal });
 
-        // Pick best supported MIME
-        const mimeType = [
-          "video/webm;codecs=vp9,opus",
-          "video/webm;codecs=vp8,opus",
-          "video/webm",
-          "video/mp4",
-        ].find((m) => MediaRecorder.isTypeSupported(m)) || "";
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || res.statusText);
+          }
 
-        clipMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-        clipMediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) clipChunks.push(e.data);
-        };
-        clipMediaRecorder.onstop = () => {
-          clipRecording = false;
-          videoPlayer.pause();
-          const blob = new Blob(clipChunks, { type: mimeType || "video/webm" });
-          const ext  = (mimeType || "video/webm").includes("mp4") ? "mp4" : "webm";
-          const url  = URL.createObjectURL(blob);
-          const a    = document.createElement("a");
-          a.href     = url;
-          a.download = `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.${ext}`;
+          const contentLength = res.headers.get("Content-Length");
+          const reader = res.body.getReader();
+          const chunks = [];
+          let received = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            if (contentLength) {
+              const pct = Math.round((received / parseInt(contentLength)) * 100);
+              clipProgress.textContent = `Descargando… ${pct}%`;
+            } else {
+              clipProgress.textContent = `Descargando… ${(received / 1024 / 1024).toFixed(1)} MB`;
+            }
+          }
+
+          const blob = new Blob(chunks, { type: "video/mp4" });
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
           document.body.appendChild(a);
           a.click();
-          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+          setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1000);
           clipProgress.textContent = `✓ Clip descargado (${(blob.size / 1024 / 1024).toFixed(1)} MB)`;
-          clipRecBtn.disabled = false;
-        };
 
-        clipMediaRecorder.start(200);
-        videoPlayer.play();
-
-        // Stop recorder when we reach the out-point
-        const stopAt = clipOutTime;
-        const ticker = setInterval(() => {
-          const remaining = stopAt - videoPlayer.currentTime;
-          if (remaining <= 0) {
-            clearInterval(ticker);
-            clipMediaRecorder.stop();
-            clipProgress.textContent = "Procesando…";
+        } catch (err) {
+          if (err.name === "AbortError") {
+            clipProgress.textContent = "Cancelado.";
           } else {
-            clipProgress.textContent = `Grabando… ${fmt(remaining)} restante`;
+            clipProgress.textContent = `Error: ${err.message}`;
           }
-        }, 200);
+        } finally {
+          clipRecording = false;
+          clipRecBtn.disabled = false;
+          _clipAbortController = null;
+        }
       });
 
       // ── custom controls ─────────────────────────────────────────
@@ -1345,6 +1332,7 @@
       // ── play a camera ────────────────────────────────────────────
       function playCamera(cam, isMulti, keepTime = false, matchMeta) {
         const t = keepTime ? videoPlayer.currentTime : 0;
+        _currentClipFilename = cam.filename;
         videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         videoPlayer.load();
 

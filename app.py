@@ -212,6 +212,80 @@ def get_progress_all(beelup_id):
     status = downloader_core.get_progress(beelup_id, "all")
     return jsonify(status)
 
+@app.route("/api/clip/<path:filename>")
+def download_clip(filename):
+    """Generate and stream a MP4 clip from a video file using ffmpeg."""
+    try:
+        start = float(request.args.get("start", 0))
+        end   = float(request.args.get("end", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Tiempos inválidos"}), 400
+
+    if end <= start:
+        return jsonify({"error": "El tiempo de fin debe ser mayor al de inicio"}), 400
+    if (end - start) > 3600:
+        return jsonify({"error": "El clip no puede ser mayor a 1 hora"}), 400
+
+    if not (filename.endswith(".mp4") or filename.endswith(".ts")):
+        return "Tipo de archivo no permitido", 403
+
+    filepath = _safe_download_path(filename)
+    if filepath is None:
+        return "Acceso denegado", 403
+    if not os.path.exists(filepath):
+        return "File not found", 404
+
+    duration = end - start
+    base = os.path.splitext(os.path.basename(filename))[0]
+    out_name = f"clip_{base}_{int(start)}s-{int(end)}s.mp4"
+
+    import subprocess, sys
+    cmd = ["ffmpeg", "-y",
+           "-ss", str(start),
+           "-i", filepath,
+           "-t", str(duration),
+           "-c", "copy",
+           "-movflags", "frag_keyframe+empty_moov",
+           "-f", "mp4",
+           "pipe:1"]
+    if sys.platform != "win32":
+        cmd = ["nice", "-n", "10"] + cmd
+
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return jsonify({"error": "ffmpeg no está instalado en el servidor"}), 500
+
+    def generate():
+        try:
+            while True:
+                chunk = proc.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            proc.stdout.close()
+            proc.wait()
+
+    return Response(
+        generate(),
+        mimetype="video/mp4",
+        headers={
+            "Content-Disposition": f'attachment; filename="{out_name}"',
+            "X-Content-Type-Options": "nosniff",
+        }
+    )
+
+@app.route("/api/clip_status")
+def clip_status():
+    """Check if ffmpeg is available for server-side clipping."""
+    import subprocess
+    try:
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return jsonify({"available": True})
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return jsonify({"available": False})
+
 @app.route("/api/file_zip/<beelup_id>")
 def download_zip(beelup_id):
     if not _safe_id(beelup_id):
