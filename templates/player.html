@@ -720,7 +720,7 @@
           ></span
         >
         <button id="galleryAdminBtn" onclick="_openAdminModal()" style="margin-left:auto;font-size:0.78rem;color:var(--muted);cursor:pointer;padding:0.3rem 0.75rem;border:1px solid var(--border);border-radius:7px;background:none;font-family:inherit;transition:all 0.2s;">&#128274; Admin</button>
-        <a href="/" class="back admin-only" style="margin-left:0;">&#8592; Descargar</a>
+        <a href="/admin" class="back admin-only" style="margin-left:0;">&#8592; Descargar</a>
       </header>
       <div class="g-body">
         <div class="g-section-title">Partidos descargados</div>
@@ -836,6 +836,7 @@
         >
         <button class="close-btn" id="adminBtn" onclick="_openAdminModal()" style="cursor:pointer;background:none;border:1px solid var(--border)">&#128274; Admin</button>
         <a href="/player" class="close-btn">← Biblioteca</a>
+        <a href="/admin" class="close-btn admin-only" style="color:#a855f7;border-color:rgba(168,85,247,0.4);">⬇ Descargar nuevo</a>
       </div>
     </div>
 
@@ -1013,6 +1014,7 @@
 
       // ── admin state ──────────────────────────────────────────────
       let _isAdmin = {{ 'true' if is_admin else 'false' }};
+      const _forceAdminModal = {{ 'true' if _force_admin_modal is defined and _force_admin_modal else 'false' }};
 
       function _applyAdminUI() {
         document.querySelectorAll(".admin-only").forEach(el => {
@@ -1577,6 +1579,7 @@
             _applyAdminUI();
             _closeAdminModal();
             loadClips();
+            if (_forceAdminModal) window.location.href = "/admin";
           } else {
             const d = await res.json().catch(() => ({}));
             adminPinError.textContent = d.error || "PIN incorrecto";
@@ -1700,6 +1703,7 @@
         _applyAdminUI();
         loadGallery();
         loadClips();
+        if (_forceAdminModal) _openAdminModal();
       }
     </script>
   </body>

@@ -68,11 +68,18 @@ VERSION = "1.2.0"
 
 @app.route("/")
 def index():
-    return render_template("index.html", version=VERSION, is_admin=_is_admin())
+    from flask import redirect
+    return redirect("/player")
 
 @app.route("/player")
 def player():
     return render_template("player.html", version=VERSION, is_admin=_is_admin())
+
+@app.route("/admin")
+def admin_page():
+    if not _is_admin():
+        return render_template("player.html", version=VERSION, is_admin=False, _force_admin_modal=True)
+    return render_template("index.html", version=VERSION, is_admin=True)
 
 @app.route("/api/admin/login", methods=["POST"])
 def admin_login():
