@@ -97,7 +97,16 @@ def list_videos():
         size_mb = round(os.path.getsize(os.path.join(dl_dir, fname)) / (1024 * 1024), 1)
 
         if match_id not in matches:
-            match_title = meta_data.get(match_id, "")
+            raw_meta    = meta_data.get(match_id, "")
+            # Support both legacy string format and new dict format
+            if isinstance(raw_meta, dict):
+                match_title     = raw_meta.get("title", "")
+                match_complejo  = raw_meta.get("complejo", "")
+                match_cancha    = raw_meta.get("cancha", "")
+            else:
+                match_title     = raw_meta
+                match_complejo  = ""
+                match_cancha    = ""
             cover_url = ""
             upper_title = match_title.upper()
             if "CONTAINER" in upper_title:
@@ -106,9 +115,11 @@ def list_videos():
                 cover_url = COVERS["MEGAFUTBOL"]
                 
             matches[match_id] = {
-                "id": match_id, 
-                "date": match_date, 
-                "title": match_title, 
+                "id":       match_id, 
+                "date":     match_date, 
+                "title":    match_title,
+                "complejo": match_complejo,
+                "cancha":   match_cancha,
                 "cover_url": cover_url,
                 "cameras": []
             }

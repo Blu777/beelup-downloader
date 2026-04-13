@@ -414,6 +414,14 @@
         border-radius: 5px;
       }
 
+      /* Skip buttons */
+      .skip-btn {
+        font-size: 0.82rem !important;
+        font-weight: 700;
+        min-width: 36px;
+        letter-spacing: -0.02em;
+      }
+
       /* Reset zoom btn (in ctrl) */
       .reset-z {
         font-size: 0.78rem !important;
@@ -524,6 +532,99 @@
         border-radius: 7px;
         cursor: pointer;
         display: none;
+      }
+
+      /* Clip panel */
+      .clip-panel {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.45rem 1rem;
+        background: var(--surf2);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+        font-size: 0.78rem;
+      }
+      .clip-panel.visible {
+        display: flex;
+      }
+      .clip-panel-lbl {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+      .clip-time-badge {
+        padding: 0.22rem 0.55rem;
+        border-radius: 6px;
+        background: rgba(99,102,241,0.15);
+        border: 1px solid rgba(99,102,241,0.35);
+        color: var(--text);
+        font-size: 0.75rem;
+        font-weight: 700;
+        min-width: 70px;
+        text-align: center;
+      }
+      .clip-time-badge.set {
+        background: rgba(99,102,241,0.3);
+        border-color: var(--accent);
+      }
+      .clip-btn {
+        padding: 0.28rem 0.7rem;
+        border-radius: 7px;
+        border: 1.5px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-family: "Outfit", sans-serif;
+        font-size: 0.76rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .clip-btn:hover {
+        background: rgba(99,102,241,0.12);
+        border-color: rgba(99,102,241,0.5);
+        color: var(--text);
+      }
+      .clip-btn.primary {
+        background: linear-gradient(135deg,var(--accent),var(--accent2));
+        border-color: transparent;
+        color: #fff;
+      }
+      .clip-btn.primary:hover {
+        opacity: 0.88;
+      }
+      .clip-btn.primary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .clip-btn.danger {
+        border-color: rgba(239,68,68,0.4);
+        color: rgba(239,68,68,0.85);
+      }
+      .clip-btn.danger:hover {
+        background: rgba(239,68,68,0.12);
+        border-color: rgba(239,68,68,0.7);
+        color: #ef4444;
+      }
+      .clip-progress {
+        font-size: 0.72rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .clip-spacer { flex: 1; }
+
+      /* Rotated video: Cancha 31 + Camera 3 */
+      .video-rotated-90 {
+        transform: rotate(90deg) !important;
+        transform-origin: center center !important;
+        width: var(--rot-size) !important;
+        height: var(--rot-size) !important;
+      }
+      .zoom-wrap.rotation-active {
+        overflow: visible;
       }
 
       /* Camera tab bar */
@@ -644,7 +745,9 @@
           </div>
           <div class="btn-row">
             <button class="ctrl-btn play-btn" id="playBtn">▶</button>
-            <button class="ctrl-btn" id="muteBtn">�</button>
+            <button class="ctrl-btn skip-btn" id="skipBackBtn" title="Retroceder 5 segundos">«5s</button>
+            <button class="ctrl-btn skip-btn" id="skipFwdBtn" title="Adelantar 5 segundos">5s»</button>
+            <button class="ctrl-btn" id="muteBtn">🔊</button>
             <input
               type="range"
               class="vol-slider"
@@ -676,11 +779,25 @@
             >
               ✕ zoom
             </button>
+            <button class="ctrl-btn" id="clipToggleBtn" title="Grabar clip">✂</button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
 
         <button class="zoom-reset-corner" id="zoomCorner">✕ Reset zoom</button>
+      </div>
+
+      <!-- Clip panel -->
+      <div class="clip-panel" id="clipPanel">
+        <span class="clip-panel-lbl">✂ Clip:</span>
+        <button class="clip-btn" id="clipInBtn">▷ Marcar inicio</button>
+        <span class="clip-time-badge" id="clipInBadge">--:--</span>
+        <button class="clip-btn" id="clipOutBtn">◁ Marcar fin</button>
+        <span class="clip-time-badge" id="clipOutBadge">--:--</span>
+        <span class="clip-spacer"></span>
+        <span class="clip-progress" id="clipProgress"></span>
+        <button class="clip-btn primary" id="clipRecBtn" disabled>⬇ Generar clip</button>
+        <button class="clip-btn danger" id="clipResetBtn">✕ Resetear</button>
       </div>
 
       <div class="cam-bar" id="camBar">
@@ -723,6 +840,17 @@
       const matchTitle = document.getElementById("matchTitle");
       const speedBtn = document.getElementById("speedBtn");
       const speedMenu = document.getElementById("speedMenu");
+      const skipBackBtn = document.getElementById("skipBackBtn");
+      const skipFwdBtn  = document.getElementById("skipFwdBtn");
+      const clipToggleBtn = document.getElementById("clipToggleBtn");
+      const clipPanel     = document.getElementById("clipPanel");
+      const clipInBtn     = document.getElementById("clipInBtn");
+      const clipOutBtn    = document.getElementById("clipOutBtn");
+      const clipInBadge   = document.getElementById("clipInBadge");
+      const clipOutBadge  = document.getElementById("clipOutBadge");
+      const clipRecBtn    = document.getElementById("clipRecBtn");
+      const clipResetBtn  = document.getElementById("clipResetBtn");
+      const clipProgress  = document.getElementById("clipProgress");
 
       // ── zoom / pan ───────────────────────────────────────────────
       let scale = 1,
@@ -736,9 +864,33 @@
       const MIN_Z = 1,
         MAX_Z = 8;
 
+      // ── rotation state ───────────────────────────────────────────
+      let _rotationActive = false;
+
+      function applyRotation(active) {
+        _rotationActive = active;
+        if (active) {
+          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+          videoPlayer.style.setProperty("--rot-size", sz + "px");
+          videoPlayer.classList.add("video-rotated-90");
+          zoomWrap.classList.add("rotation-active");
+        } else {
+          videoPlayer.classList.remove("video-rotated-90");
+          zoomWrap.classList.remove("rotation-active");
+          videoPlayer.style.removeProperty("--rot-size");
+        }
+      }
+
       function applyT() {
-        videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
-        videoPlayer.style.transformOrigin = "center center";
+        if (_rotationActive) {
+          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+          videoPlayer.style.setProperty("--rot-size", sz + "px");
+          videoPlayer.style.transform = `rotate(90deg) scale(${scale}) translate(${panX}px,${panY}px)`;
+          videoPlayer.style.transformOrigin = "center center";
+        } else {
+          videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
+          videoPlayer.style.transformOrigin = "center center";
+        }
         const z = scale > 1.01;
         dragOverlay.style.pointerEvents = z ? "all" : "none";
         dragOverlay.style.cursor = z
@@ -814,8 +966,7 @@
       resetZBtn.addEventListener("click", resetZ);
       zoomCorner.addEventListener("click", resetZ);
 
-      // ── custom controls ─────────────────────────────────────────
-      let isScrubbing = false;
+      // ── time formatter (used by controls & clip) ─────────────────
       const fmt = (s) => {
         s = Math.floor(s || 0);
         const h = Math.floor(s / 3600),
@@ -825,6 +976,150 @@
           ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
           : `${m}:${String(ss).padStart(2, "0")}`;
       };
+
+      // ── skip buttons ─────────────────────────────────────────────
+      skipBackBtn.addEventListener("click", () => {
+        videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 5);
+      });
+      skipFwdBtn.addEventListener("click", () => {
+        videoPlayer.currentTime = Math.min(
+          videoPlayer.duration || 0,
+          videoPlayer.currentTime + 5
+        );
+      });
+
+      // ── clip functionality ───────────────────────────────────────
+      let clipInTime  = null;
+      let clipOutTime = null;
+      let clipRecording = false;
+      let clipMediaRecorder = null;
+      let clipChunks = [];
+
+      clipToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        clipPanel.classList.toggle("visible");
+        clipToggleBtn.style.color = clipPanel.classList.contains("visible")
+          ? "var(--accent)"
+          : "";
+      });
+
+      clipInBtn.addEventListener("click", () => {
+        clipInTime = videoPlayer.currentTime;
+        clipInBadge.textContent = fmt(clipInTime);
+        clipInBadge.classList.add("set");
+        _updateClipRecBtn();
+      });
+
+      clipOutBtn.addEventListener("click", () => {
+        clipOutTime = videoPlayer.currentTime;
+        clipOutBadge.textContent = fmt(clipOutTime);
+        clipOutBadge.classList.add("set");
+        _updateClipRecBtn();
+      });
+
+      function _updateClipRecBtn() {
+        const ready =
+          clipInTime !== null &&
+          clipOutTime !== null &&
+          clipOutTime > clipInTime;
+        clipRecBtn.disabled = !ready;
+        clipRecBtn.title = ready
+          ? `Generar clip de ${fmt(clipOutTime - clipInTime)}`
+          : "Marca inicio y fin válidos";
+      }
+
+      clipResetBtn.addEventListener("click", () => {
+        clipInTime = clipOutTime = null;
+        clipInBadge.textContent = "--:--";
+        clipOutBadge.textContent = "--:--";
+        clipInBadge.classList.remove("set");
+        clipOutBadge.classList.remove("set");
+        clipRecBtn.disabled = true;
+        clipProgress.textContent = "";
+        if (clipRecording) {
+          clipMediaRecorder && clipMediaRecorder.stop();
+          clipRecording = false;
+        }
+      });
+
+      clipRecBtn.addEventListener("click", async () => {
+        if (clipRecording) return;
+        if (clipInTime === null || clipOutTime === null || clipOutTime <= clipInTime) return;
+
+        const duration = clipOutTime - clipInTime;
+        clipProgress.textContent = "Preparando…";
+        clipRecBtn.disabled = true;
+        clipRecording = true;
+        clipChunks = [];
+
+        // Seek to start
+        videoPlayer.pause();
+        videoPlayer.currentTime = clipInTime;
+
+        await new Promise((res) => {
+          videoPlayer.addEventListener("seeked", res, { once: true });
+        });
+
+        // Capture stream from video element
+        let stream;
+        try {
+          stream = videoPlayer.captureStream
+            ? videoPlayer.captureStream()
+            : videoPlayer.mozCaptureStream();
+        } catch (err) {
+          clipProgress.textContent = "Error: captureStream no soportado en este navegador.";
+          clipRecording = false;
+          clipRecBtn.disabled = false;
+          return;
+        }
+
+        // Pick best supported MIME
+        const mimeType = [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm",
+          "video/mp4",
+        ].find((m) => MediaRecorder.isTypeSupported(m)) || "";
+
+        clipMediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+        clipMediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) clipChunks.push(e.data);
+        };
+        clipMediaRecorder.onstop = () => {
+          clipRecording = false;
+          videoPlayer.pause();
+          const blob = new Blob(clipChunks, { type: mimeType || "video/webm" });
+          const ext  = (mimeType || "video/webm").includes("mp4") ? "mp4" : "webm";
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement("a");
+          a.href     = url;
+          a.download = `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+          clipProgress.textContent = `✓ Clip descargado (${(blob.size / 1024 / 1024).toFixed(1)} MB)`;
+          clipRecBtn.disabled = false;
+        };
+
+        clipMediaRecorder.start(200);
+        videoPlayer.play();
+
+        // Stop recorder when we reach the out-point
+        const stopAt = clipOutTime;
+        const ticker = setInterval(() => {
+          const remaining = stopAt - videoPlayer.currentTime;
+          if (remaining <= 0) {
+            clearInterval(ticker);
+            clipMediaRecorder.stop();
+            clipProgress.textContent = "Procesando…";
+          } else {
+            clipProgress.textContent = `Grabando… ${fmt(remaining)} restante`;
+          }
+        }, 200);
+      });
+
+      // ── custom controls ─────────────────────────────────────────
+      let isScrubbing = false;
 
       videoPlayer.addEventListener("timeupdate", () => {
         if (isScrubbing) return;
@@ -1048,10 +1343,18 @@
       });
 
       // ── play a camera ────────────────────────────────────────────
-      function playCamera(cam, isMulti, keepTime = false) {
+      function playCamera(cam, isMulti, keepTime = false, matchMeta) {
         const t = keepTime ? videoPlayer.currentTime : 0;
         videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         videoPlayer.load();
+
+        // Cancha 31 + Cámara 3 (der) → rotate 90°
+        const needsRotation =
+          matchMeta &&
+          String(matchMeta.cancha) === "31" &&
+          cam.cam_id === "der";
+        applyRotation(!!needsRotation);
+
         if (isMulti) {
           scale = 2;
           panX = 0;
@@ -1100,7 +1403,7 @@
               .querySelectorAll(".cam-tab")
               .forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
-            playCamera(cam, isMulti, true);
+            playCamera(cam, isMulti, true, match);
             updateDlBtn(cam);
           });
           camTabs.appendChild(btn);
@@ -1206,7 +1509,7 @@
         if (!match) return;
 
         renderCamTabs(match);
-        playCamera(match.cameras[0], match.cameras.length > 1, false);
+        playCamera(match.cameras[0], match.cameras.length > 1, false, match);
       }
 
       // ── bootstrap ────────────────────────────────────────────────
