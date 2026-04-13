@@ -692,6 +692,23 @@
     </style>
   </head>
   <body>
+    <!-- ═══ ADMIN MODAL ═══ -->
+    <div id="adminModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;min-width:300px;display:flex;flex-direction:column;gap:1rem;">
+        <div style="font-weight:700;font-size:1rem;">&#128274; Acceso Admin</div>
+        <input id="adminPinInput" type="password" placeholder="PIN" autocomplete="current-password"
+          style="padding:0.6rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:var(--surf2);color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;"/>
+        <div id="adminPinError" style="color:#ef4444;font-size:0.78rem;display:none;"></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button onclick="_submitAdminPin()" style="flex:1;padding:0.55rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;">Entrar</button>
+          <button onclick="_closeAdminModal()" style="padding:0.55rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;cursor:pointer;">Cancelar</button>
+        </div>
+        <div id="adminLogoutRow" style="display:none;border-top:1px solid var(--border);padding-top:0.75rem;">
+          <button onclick="_adminLogout()" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-family:inherit;cursor:pointer;font-size:0.82rem;">&#x2715; Cerrar sesión admin</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ GALLERY VIEW ═══ -->
     <div id="galleryView">
       <header class="g-header">
@@ -702,7 +719,8 @@
             >(v{{ version }})</span
           ></span
         >
-        <a href="/" class="back">← Descargar</a>
+        <button id="galleryAdminBtn" onclick="_openAdminModal()" style="margin-left:auto;font-size:0.78rem;color:var(--muted);cursor:pointer;padding:0.3rem 0.75rem;border:1px solid var(--border);border-radius:7px;background:none;font-family:inherit;transition:all 0.2s;">&#128274; Admin</button>
+        <a href="/" class="back admin-only" style="margin-left:0;">&#8592; Descargar</a>
       </header>
       <div class="g-body">
         <div class="g-section-title">Partidos descargados</div>
@@ -711,6 +729,10 @@
             <div style="font-size: 2rem; margin-bottom: 0.5rem">⏳</div>
             Cargando partidos...
           </div>
+        </div>
+        <div class="g-section-title" style="margin-top:2rem;">Clips guardados</div>
+        <div class="match-grid" id="clipsGrid">
+          <div class="g-empty">Cargando clips...</div>
         </div>
       </div>
     </div>
@@ -807,11 +829,12 @@
         <a
           href="#"
           id="playerDlBtn"
-          class="close-btn"
+          class="close-btn admin-only"
           style="color: #a855f7; border-color: rgba(168, 85, 247, 0.4)"
           download
           >⬇ Descargar cámara</a
         >
+        <button class="close-btn" id="adminBtn" onclick="_openAdminModal()" style="cursor:pointer;background:none;border:1px solid var(--border)">&#128274; Admin</button>
         <a href="/player" class="close-btn">← Biblioteca</a>
       </div>
     </div>
@@ -988,11 +1011,24 @@
         );
       });
 
+      // ── admin state ──────────────────────────────────────────────
+      let _isAdmin = {{ 'true' if is_admin else 'false' }};
+
+      function _applyAdminUI() {
+        document.querySelectorAll(".admin-only").forEach(el => {
+          el.style.display = _isAdmin ? "" : "none";
+        });
+        const btn = document.getElementById("adminBtn");
+        if (btn) btn.textContent = _isAdmin ? "🔓 Admin" : "🔒 Admin";
+      }
+
       // ── clip functionality ───────────────────────────────────────
       let clipInTime  = null;
       let clipOutTime = null;
       let clipRecording = false;
       let _currentClipFilename = null;
+      let _currentMatchId = null;
+      let _currentCamId = null;
       let _clipAbortController = null;
 
       clipToggleBtn.addEventListener("click", (e) => {
@@ -1054,7 +1090,9 @@
         _clipAbortController = new AbortController();
 
         const url = `/api/clip/${encodeURIComponent(_currentClipFilename)}` +
-          `?start=${clipInTime.toFixed(3)}&end=${clipOutTime.toFixed(3)}`;
+          `?start=${clipInTime.toFixed(3)}&end=${clipOutTime.toFixed(3)}` +
+          `&match_id=${encodeURIComponent(_currentMatchId || "")}` +
+          `&cam_id=${encodeURIComponent(_currentCamId || "")}`;
 
         try {
           const res = await fetch(url, { signal: _clipAbortController.signal });
@@ -1333,6 +1371,8 @@
       function playCamera(cam, isMulti, keepTime = false, matchMeta) {
         const t = keepTime ? videoPlayer.currentTime : 0;
         _currentClipFilename = cam.filename;
+        _currentMatchId = matchMeta ? matchMeta.id : null;
+        _currentCamId   = cam.cam_id || "";
         videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         videoPlayer.load();
 
@@ -1500,12 +1540,166 @@
         playCamera(match.cameras[0], match.cameras.length > 1, false, match);
       }
 
+      // ── admin modal ──────────────────────────────────────────────
+      const adminModal    = document.getElementById("adminModal");
+      const adminPinInput = document.getElementById("adminPinInput");
+      const adminPinError = document.getElementById("adminPinError");
+      const adminLogoutRow = document.getElementById("adminLogoutRow");
+
+      function _openAdminModal() {
+        adminPinError.style.display = "none";
+        adminPinInput.value = "";
+        adminLogoutRow.style.display = _isAdmin ? "" : "none";
+        adminModal.style.display = "flex";
+        setTimeout(() => adminPinInput.focus(), 50);
+      }
+      function _closeAdminModal() {
+        adminModal.style.display = "none";
+      }
+      adminModal.addEventListener("click", (e) => {
+        if (e.target === adminModal) _closeAdminModal();
+      });
+      adminPinInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") _submitAdminPin();
+      });
+
+      async function _submitAdminPin() {
+        const pin = adminPinInput.value.trim();
+        if (!pin) return;
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin }),
+          });
+          if (res.ok) {
+            _isAdmin = true;
+            _applyAdminUI();
+            _closeAdminModal();
+            loadClips();
+          } else {
+            const d = await res.json().catch(() => ({}));
+            adminPinError.textContent = d.error || "PIN incorrecto";
+            adminPinError.style.display = "";
+            adminPinInput.value = "";
+            adminPinInput.focus();
+          }
+        } catch {
+          adminPinError.textContent = "Error de conexión";
+          adminPinError.style.display = "";
+        }
+      }
+
+      async function _adminLogout() {
+        await fetch("/api/admin/logout", { method: "POST" });
+        _isAdmin = false;
+        _applyAdminUI();
+        _closeAdminModal();
+        loadClips();
+      }
+
+      // ── clips gallery ────────────────────────────────────────────
+      const clipsGrid = document.getElementById("clipsGrid");
+
+      const fmtTime = (s) => {
+        if (s == null) return "--:--";
+        s = Math.floor(s);
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+        return h
+          ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`
+          : `${m}:${String(ss).padStart(2,"0")}`;
+      };
+
+      async function loadClips() {
+        if (!clipsGrid) return;
+        clipsGrid.innerHTML = '<div class="g-empty">Cargando clips...</div>';
+        try {
+          const res  = await fetch("/api/clips");
+          const data = await res.json();
+          renderClips(data.groups || []);
+        } catch {
+          clipsGrid.innerHTML = '<div class="g-empty">Error cargando clips</div>';
+        }
+      }
+
+      function renderClips(groups) {
+        if (!groups.length) {
+          clipsGrid.innerHTML = '<div class="g-empty">No hay clips guardados aún.<br>Usá el botón ✂ en el reproductor para generar uno.</div>';
+          return;
+        }
+        clipsGrid.innerHTML = "";
+        groups.forEach((group) => {
+          const title = group.match_title || `Partido #${group.match_id}`;
+          const section = document.createElement("div");
+          section.style.cssText = "grid-column:1/-1;";
+          section.innerHTML = `<div style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border);">📂 ${title}</div>`;
+          clipsGrid.appendChild(section);
+
+          group.clips.forEach((clip) => {
+            const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
+            const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+            const card = document.createElement("div");
+            card.className = "match-card";
+            card.innerHTML = `
+              <div class="card-thumb" style="height:90px;font-size:2rem;">
+                ✂
+                ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+              </div>
+              <div class="card-body">
+                <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
+                <div class="card-meta">
+                  ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
+                  <span>${clip.size_mb} MB</span>
+                </div>
+                <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
+                  <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                     target="_blank"
+                     style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
+                    ▶ Reproducir
+                  </a>
+                  <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                     download="${clip.filename}"
+                     style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
+                    ⬇ Descargar
+                  </a>
+                  ${_isAdmin ? `<button onclick="_deleteClip('${clip.filename}', this)"
+                     style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
+                    ✕
+                  </button>` : ""}
+                </div>
+              </div>`;
+            clipsGrid.appendChild(card);
+          });
+        });
+      }
+
+      async function _deleteClip(filename, btn) {
+        if (!confirm(`¿Eliminar clip "${filename}"?`)) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/clips/delete/${encodeURIComponent(filename)}`, { method: "DELETE" });
+          if (res.ok) {
+            loadClips();
+          } else {
+            const d = await res.json().catch(() => ({}));
+            alert(d.error || "Error al eliminar");
+            btn.disabled = false;
+          }
+        } catch {
+          alert("Error de conexión");
+          btn.disabled = false;
+        }
+      }
+
       // ── bootstrap ────────────────────────────────────────────────
       const urlId = new URLSearchParams(location.search).get("id");
       if (urlId) {
         initPlayer(urlId);
+        _applyAdminUI();
       } else {
+        _applyAdminUI();
         loadGallery();
+        loadClips();
       }
     </script>
   </body>

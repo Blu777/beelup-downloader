@@ -11,8 +11,9 @@ services:
       - /mnt/tank/beelup-test/downloads:/app/downloads
       - /mnt/tank/beelup-test/temp:/app/temp
     environment:
-      # Opcional: Variables de entorno para configuración
       - PYTHONUNBUFFERED=1
+      - ADMIN_PIN=${ADMIN_PIN:-}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     restart: unless-stopped
 
     # Opcional: Recursos limitados para entorno de prueba
