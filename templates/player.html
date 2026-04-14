@@ -1016,6 +1016,11 @@
       let _isAdmin = {{ 'true' if is_admin else 'false' }};
       const _forceAdminModal = {{ 'true' if _force_admin_modal is defined and _force_admin_modal else 'false' }};
 
+      // Immediate hide of admin elements to prevent flash
+      if (!_isAdmin) {
+        document.querySelectorAll(".admin-only").forEach(el => el.style.display = "none");
+      }
+
       function _applyAdminUI() {
         document.querySelectorAll(".admin-only").forEach(el => {
           el.style.display = _isAdmin ? "" : "none";
@@ -1662,11 +1667,11 @@
                      style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
                     ▶ Reproducir
                   </a>
-                  <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                  ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
                      download="${clip.filename}"
                      style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
                     ⬇ Descargar
-                  </a>
+                  </a>` : ""}
                   ${_isAdmin ? `<button onclick="_deleteClip('${clip.filename}', this)"
                      style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
                     ✕
