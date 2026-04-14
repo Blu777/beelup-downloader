@@ -209,7 +209,9 @@ def stream_video(filename):
 
 @app.route("/api/cameras/<beelup_id>")
 def get_cameras(beelup_id):
-    """Detect available cameras for a given match ID."""
+    """Detect available cameras for a given match ID (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     if not _safe_id(beelup_id):
         return jsonify({"error": "ID de partido inválido"}), 400
     try:
@@ -263,7 +265,9 @@ def get_progress_all(beelup_id):
 
 @app.route("/api/clip/<path:filename>")
 def download_clip(filename):
-    """Generate, save and stream a MP4 clip from a video file using ffmpeg."""
+    """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     import subprocess, sys, json as _json
     try:
         start     = float(request.args.get("start", 0))

@@ -192,6 +192,9 @@
     </div>
 
     <script>
+        // Admin status check
+        let _isAdmin = {{ 'true' if is_admin else 'false' }};
+
         const form               = document.getElementById('downloadForm');
         const submitBtn          = document.getElementById('submitBtn');
         const urlInput           = document.getElementById('url_input');
@@ -212,6 +215,29 @@
         let selectedCamara     = "";   // "" = single camera / no param
         let detectedCameras    = [];
         let lastDetectedId     = "";   // avoid re-detecting the same ID
+
+        // Apply admin UI restrictions
+        function _applyAdminUI() {
+            if (!_isAdmin) {
+                // Hide download form for non-admin users
+                form.style.display = 'none';
+                // Show message for non-admin
+                const mainCard = document.querySelector('main.card');
+                const msg = document.createElement('div');
+                msg.className = 'error-box';
+                msg.style.background = 'rgba(255,255,255,0.05)';
+                msg.style.borderColor = 'var(--border)';
+                msg.style.textAlign = 'center';
+                msg.innerHTML = `
+                    <div style="font-size:2rem;margin-bottom:0.5rem">🔒</div>
+                    <strong>Acceso restringido</strong><br>
+                    Solo administradores pueden descargar videos.<br><br>
+                    <a href="/player" style="color:#a78bfa;font-weight:600;">🎬 Ir a la Biblioteca de Partidos →</a>
+                `;
+                mainCard.insertBefore(msg, form);
+            }
+        }
+        _applyAdminUI();
 
         // ──────────────────────────────────────────
         // Extract Beelup ID from raw input
@@ -252,12 +278,20 @@
             const id = extractBeelupId(raw);
             if (!id || id === lastDetectedId) return;
 
+            // Only detect cameras if admin
+            if (!_isAdmin) return;
+
             lastDetectedId = id;
             hideCameraSelector();
             detectingMsg.classList.remove('hidden');
 
             try {
                 const res  = await fetch(`/api/cameras/${id}`);
+                if (res.status === 401) {
+                    // Not admin, silently ignore
+                    detectedCameras = [];
+                    return;
+                }
                 const data = await res.json();
                 detectedCameras = data.cameras || [];
             } catch (e) {

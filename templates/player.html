@@ -801,7 +801,7 @@
             >
               ✕ zoom
             </button>
-            <button class="ctrl-btn" id="clipToggleBtn" title="Grabar clip">✂</button>
+            <button class="ctrl-btn admin-only" id="clipToggleBtn" title="Grabar clip">✂</button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
@@ -1481,12 +1481,14 @@
               : `${totalMB.toFixed(0)} MB`;
 
           let dlBtnsHtml = "";
-          match.cameras.forEach((c) => {
-            const camParam = c.cam_id
-              ? `?camara=${encodeURIComponent(c.cam_id)}`
-              : "";
-            dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
-          });
+          if (_isAdmin) {
+            match.cameras.forEach((c) => {
+              const camParam = c.cam_id
+                ? `?camara=${encodeURIComponent(c.cam_id)}`
+                : "";
+              dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
+            });
+          }
 
           const dateStr = match.date
             ? `📅 ${match.date} (ID: ${match.id})`
@@ -1519,7 +1521,7 @@
                     <span>${sz} total</span>
                 </div>
                 <button class="card-play-btn">▶ Reproducir</button>
-                <div class="dl-row">${dlBtnsHtml}</div>
+                ${_isAdmin ? `<div class="dl-row">${dlBtnsHtml}</div>` : ""}
             </div>`;
           card.addEventListener("click", () =>
             window.open(`/player?id=${match.id}`, "_blank"),
