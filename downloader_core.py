@@ -301,6 +301,10 @@ async def _download_video_worker_async(beelup_id, camara=""):
         if "segmentos" not in segment_list or len(segment_list["segmentos"]) == 0:
             raise Exception("No se encontraron segmentos para este video.")
 
+        # Extract complejo and cancha from playlist JSON
+        playlist_complejo = segment_list.get("complejo", "")
+        playlist_cancha   = str(segment_list.get("cancha", ""))
+
         # Step 2: Download segments CONCURRENTLY
         segment_cnt = len(segment_list["segmentos"])
 
@@ -322,7 +326,7 @@ async def _download_video_worker_async(beelup_id, camara=""):
                         m_title = re.search(r"<title>(.*?)</title>", html, re.IGNORECASE)
                         if m_title:
                             match_title = m_title.group(1).replace(" | Beelup", "").strip()
-                            # Save title to metadata JSON with file locking
+                            # Save title, complejo and cancha to metadata JSON with file locking
                             import json
                             meta_file = os.path.join(DOWNLOAD_DIR, "metadata.json")
                             lock_file = meta_file + ".lock"
@@ -335,7 +339,11 @@ async def _download_video_worker_async(beelup_id, camara=""):
                                             meta_data = json.load(f)
                                     except:
                                         pass
-                                meta_data[beelup_id] = match_title
+                                if beelup_id not in meta_data or not isinstance(meta_data[beelup_id], dict):
+                                    meta_data[beelup_id] = {}
+                                meta_data[beelup_id]["title"]    = match_title
+                                meta_data[beelup_id]["complejo"] = playlist_complejo
+                                meta_data[beelup_id]["cancha"]   = playlist_cancha
                                 with open(meta_file, "w", encoding="utf-8") as f:
                                     json.dump(meta_data, f, ensure_ascii=False, indent=2)
 
@@ -395,13 +403,24 @@ async def _download_video_worker_async(beelup_id, camara=""):
         except (subprocess.CalledProcessError, FileNotFoundError):
             has_ffmpeg = False
 
+        # Cancha 31 right camera is physically mounted rotated 90° CCW — correct it.
+        needs_rotation = (playlist_cancha == "31" and camara == "der")
+
         if has_ffmpeg:
             try:
-                cmd = [
-                    "ffmpeg", "-y", "-i", ts_output_file,
-                    "-c", "copy", "-bsf:a", "aac_adtstoasc",
-                    mp4_output_file
-                ]
+                if needs_rotation:
+                    cmd = [
+                        "ffmpeg", "-y", "-i", ts_output_file,
+                        "-vf", "transpose=1",
+                        "-c:a", "copy",
+                        mp4_output_file
+                    ]
+                else:
+                    cmd = [
+                        "ffmpeg", "-y", "-i", ts_output_file,
+                        "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                        mp4_output_file
+                    ]
                 # Run ffmpeg with low priority to avoid crushing the system.
                 # On Windows use BELOW_NORMAL_PRIORITY_CLASS; on Linux/Docker use nice.
                 import sys

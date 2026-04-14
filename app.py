@@ -1,10 +1,38 @@
-from flask import Flask, render_template, request, jsonify, send_file, Response
+from flask import Flask, render_template, request, jsonify, send_file, make_response, redirect
 import os
 import re
-import mimetypes
+import hmac
+import hashlib
+import json
+import subprocess
+import sys
 import downloader_core
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+
+@app.after_request
+def no_cache(response):
+    if "text/html" in response.content_type:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+# ── Admin auth ────────────────────────────────────────────────────────────────
+ADMIN_PIN  = os.environ.get("ADMIN_PIN", "")
+_AUTH_COOKIE = "bdl_admin"
+
+def _make_token(pin: str) -> str:
+    """HMAC-signed token so the cookie can't be forged."""
+    return hmac.new(app.secret_key.encode(), pin.encode(), hashlib.sha256).hexdigest()
+
+def _is_admin() -> bool:
+    """Return True if the request carries a valid admin cookie."""
+    if not ADMIN_PIN:
+        return False
+    token = request.cookies.get(_AUTH_COOKIE, "")
+    return hmac.compare_digest(token, _make_token(ADMIN_PIN))
 
 # ── Security helpers ──────────────────────────────────────────────────────────
 
@@ -44,17 +72,61 @@ def _extract_beelup_id(raw: str) -> str | None:
         return m.group(1) if m else None
     return _safe_id(raw)
 
-VERSION = "1.2.0"
+VERSION = "test"
+
+_COVERS = {
+    "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
+    "MEGAFUTBOL": "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no"
+}
+
+_CAM_LABELS = {
+    "central": "Cámara 1 (Central)",
+    "izq":     "Cámara 2 (Izquierda)",
+    "der":     "Cámara 3 (Derecha)",
+    "":        "Cámara única",
+}
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
-    return render_template("index.html", version=VERSION)
+    return render_template("index.html", version=VERSION, is_admin=_is_admin())
 
 @app.route("/player")
 def player():
-    return render_template("player.html", version=VERSION)
+    return render_template("player.html", version=VERSION, is_admin=_is_admin())
+
+@app.route("/manage")
+def manage_page():
+    if not _is_admin():
+        return render_template("index.html", version=VERSION, is_admin=False, _force_admin_modal=True)
+    return render_template("manage.html", version=VERSION, is_admin=True)
+
+@app.route("/admin")
+def admin_page():
+    return redirect("/manage")
+
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    data = request.json or {}
+    pin  = data.get("pin", "").strip()
+    if not ADMIN_PIN:
+        return jsonify({"error": "Admin no configurado en el servidor"}), 503
+    if not pin or not hmac.compare_digest(pin, ADMIN_PIN):
+        return jsonify({"error": "PIN incorrecto"}), 401
+    resp = make_response(jsonify({"ok": True}))
+    resp.set_cookie(_AUTH_COOKIE, _make_token(pin), httponly=True, samesite="Strict", max_age=86400 * 7)
+    return resp
+
+@app.route("/api/admin/logout", methods=["POST"])
+def admin_logout():
+    resp = make_response(jsonify({"ok": True}))
+    resp.delete_cookie(_AUTH_COOKIE)
+    return resp
+
+@app.route("/api/admin/status")
+def admin_status():
+    return jsonify({"is_admin": _is_admin(), "pin_configured": bool(ADMIN_PIN)})
 
 @app.route("/api/videos")
 def list_videos():
@@ -62,7 +134,6 @@ def list_videos():
     dl_dir = downloader_core.DOWNLOAD_DIR
     matches = {}
 
-    import json
     meta_data = {}
     meta_file = os.path.join(dl_dir, "metadata.json")
     if os.path.exists(meta_file):
@@ -71,18 +142,6 @@ def list_videos():
                 meta_data = json.load(f)
         except Exception:
             pass
-
-    COVERS = {
-        "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
-        "MEGAFUTBOL": "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no"
-    }
-
-    cam_labels = {
-        "central": "Cámara 1 (Central)",
-        "izq":     "Cámara 2 (Izquierda)",
-        "der":     "Cámara 3 (Derecha)",
-        "":        "Cámara única",
-    }
 
     for fname in sorted(os.listdir(dl_dir)):
         if not (fname.endswith(".mp4") or fname.endswith(".ts")):
@@ -97,18 +156,29 @@ def list_videos():
         size_mb = round(os.path.getsize(os.path.join(dl_dir, fname)) / (1024 * 1024), 1)
 
         if match_id not in matches:
-            match_title = meta_data.get(match_id, "")
+            raw_meta    = meta_data.get(match_id, "")
+            # Support both legacy string format and new dict format
+            if isinstance(raw_meta, dict):
+                match_title     = raw_meta.get("title", "")
+                match_complejo  = raw_meta.get("complejo", "")
+                match_cancha    = raw_meta.get("cancha", "")
+            else:
+                match_title     = raw_meta
+                match_complejo  = ""
+                match_cancha    = ""
             cover_url = ""
             upper_title = match_title.upper()
             if "CONTAINER" in upper_title:
-                cover_url = COVERS["CONTAINER"]
+                cover_url = _COVERS["CONTAINER"]
             elif "MEGAFUTBOL" in upper_title:
-                cover_url = COVERS["MEGAFUTBOL"]
+                cover_url = _COVERS["MEGAFUTBOL"]
                 
             matches[match_id] = {
-                "id": match_id, 
-                "date": match_date, 
-                "title": match_title, 
+                "id":       match_id, 
+                "date":     match_date, 
+                "title":    match_title,
+                "complejo": match_complejo,
+                "cancha":   match_cancha,
                 "cover_url": cover_url,
                 "cameras": []
             }
@@ -116,12 +186,17 @@ def list_videos():
             # If we found a date from another camera file, populate it
             matches[match_id]["date"] = match_date
 
-        matches[match_id]["cameras"].append({
-            "cam_id":   cam_id,
-            "label":    cam_labels.get(cam_id, f"Cámara ({cam_id})"),
-            "filename": fname,
-            "size_mb":  size_mb,
-        })
+        existing_cam = next((c for c in matches[match_id]["cameras"] if c["cam_id"] == cam_id), None)
+        if existing_cam is None:
+            matches[match_id]["cameras"].append({
+                "cam_id":   cam_id,
+                "label":    _CAM_LABELS.get(cam_id, f"Cámara ({cam_id})"),
+                "filename": fname,
+                "size_mb":  size_mb,
+            })
+        elif fname.endswith(".mp4") and existing_cam["filename"].endswith(".ts"):
+            existing_cam["filename"] = fname
+            existing_cam["size_mb"]  = size_mb
 
     cam_order = ["izq", "central", "der", ""]
     for m in matches.values():
@@ -151,7 +226,9 @@ def stream_video(filename):
 
 @app.route("/api/cameras/<beelup_id>")
 def get_cameras(beelup_id):
-    """Detect available cameras for a given match ID."""
+    """Detect available cameras for a given match ID (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     if not _safe_id(beelup_id):
         return jsonify({"error": "ID de partido inválido"}), 400
     try:
@@ -163,6 +240,8 @@ def get_cameras(beelup_id):
 @app.route("/api/download_all", methods=["POST"])
 def start_download_all():
     """Start downloading all cameras for a given match, then zip them."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     data = request.json or {}
     raw_input = data.get("url_or_id", "").strip()
     cameras   = data.get("cameras", [])
@@ -201,8 +280,232 @@ def get_progress_all(beelup_id):
     status = downloader_core.get_progress(beelup_id, "all")
     return jsonify(status)
 
+@app.route("/api/clip/<path:filename>")
+def download_clip(filename):
+    """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
+    try:
+        start     = float(request.args.get("start", 0))
+        end       = float(request.args.get("end", 0))
+        match_id  = request.args.get("match_id", "").strip()
+        cam_id    = request.args.get("cam_id", "").strip()
+    except (TypeError, ValueError):
+        return jsonify({"error": "Tiempos inválidos"}), 400
+
+    if end <= start:
+        return jsonify({"error": "El tiempo de fin debe ser mayor al de inicio"}), 400
+    if (end - start) > 3600:
+        return jsonify({"error": "El clip no puede ser mayor a 1 hora"}), 400
+
+    if not (filename.endswith(".mp4") or filename.endswith(".ts")):
+        return "Tipo de archivo no permitido", 403
+
+    filepath = _safe_download_path(filename)
+    if filepath is None:
+        return "Acceso denegado", 403
+    if not os.path.exists(filepath):
+        return "File not found", 404
+
+    duration = end - start
+    base     = os.path.splitext(os.path.basename(filename))[0]
+    out_name = f"clip_{base}_{int(start)}s-{int(end)}s.mp4"
+
+    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
+    os.makedirs(clips_dir, exist_ok=True)
+    out_path = os.path.join(clips_dir, out_name)
+
+    cmd = ["ffmpeg", "-y",
+           "-ss", str(start),
+           "-i", filepath,
+           "-t", str(duration),
+           "-c", "copy",
+           "-movflags", "frag_keyframe+empty_moov+faststart",
+           "-f", "mp4",
+           out_path]
+    if sys.platform != "win32":
+        cmd = ["nice", "-n", "10"] + cmd
+
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        return jsonify({"error": "ffmpeg no está instalado en el servidor"}), 500
+
+    if proc.returncode != 0 or not os.path.exists(out_path):
+        return jsonify({"error": "Error al generar el clip"}), 500
+
+    # Save clip metadata
+    if match_id:
+        clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+        try:
+            clips_meta = {}
+            if os.path.exists(clips_meta_file):
+                with open(clips_meta_file, "r", encoding="utf-8") as f:
+                    clips_meta = json.load(f)
+            clips_meta[out_name] = {
+                "match_id": match_id,
+                "cam_id":   cam_id,
+                "start":    start,
+                "end":      end,
+                "filename": out_name,
+            }
+            with open(clips_meta_file, "w", encoding="utf-8") as f:
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    return send_file(out_path, mimetype="video/mp4", as_attachment=True, download_name=out_name)
+
+@app.route("/api/clips")
+def list_clips():
+    """List saved clips grouped by match_id, enriched with match metadata."""
+    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
+    clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+    meta_file = os.path.join(downloader_core.DOWNLOAD_DIR, "metadata.json")
+
+    clips_meta = {}
+    match_meta = {}
+
+    if os.path.exists(clips_meta_file):
+        try:
+            with open(clips_meta_file, "r", encoding="utf-8") as f:
+                clips_meta = json.load(f)
+        except Exception:
+            pass
+
+    if os.path.exists(meta_file):
+        try:
+            with open(meta_file, "r", encoding="utf-8") as f:
+                match_meta = json.load(f)
+        except Exception:
+            pass
+
+    groups = {}
+    if os.path.isdir(clips_dir):
+        for fname in sorted(os.listdir(clips_dir)):
+            if not fname.endswith(".mp4"):
+                continue
+            fpath = os.path.join(clips_dir, fname)
+            size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 1)
+            meta    = clips_meta.get(fname, {})
+            mid     = meta.get("match_id", "unknown")
+
+            raw = match_meta.get(mid, {})
+            if isinstance(raw, dict):
+                title = raw.get("title", "")
+            else:
+                title = raw
+
+            if mid not in groups:
+                groups[mid] = {"match_id": mid, "match_title": title, "clips": []}
+
+            groups[mid]["clips"].append({
+                "filename": fname,
+                "start":    meta.get("start"),
+                "end":      meta.get("end"),
+                "cam_id":   meta.get("cam_id", ""),
+                "size_mb":  size_mb,
+            })
+
+    return jsonify({"groups": list(groups.values())})
+
+@app.route("/api/clips/stream/<path:filename>")
+def stream_clip(filename):
+    """Stream a saved clip for inline playback."""
+    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
+    filepath  = os.path.realpath(os.path.join(clips_dir, filename))
+    base      = os.path.realpath(clips_dir)
+    if not filepath.startswith(base + os.sep) or not filename.endswith(".mp4"):
+        return "Acceso denegado", 403
+    if not os.path.exists(filepath):
+        return "File not found", 404
+    return send_file(filepath, mimetype="video/mp4", conditional=True)
+
+@app.route("/api/clips/delete/<path:filename>", methods=["DELETE"])
+def delete_clip(filename):
+    """Delete a saved clip (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
+    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
+    filepath  = os.path.realpath(os.path.join(clips_dir, filename))
+    base      = os.path.realpath(clips_dir)
+    if not filepath.startswith(base + os.sep) or not filename.endswith(".mp4"):
+        return "Acceso denegado", 403
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+        if os.path.exists(clips_meta_file):
+            with open(clips_meta_file, "r", encoding="utf-8") as f:
+                clips_meta = json.load(f)
+            clips_meta.pop(filename, None)
+            with open(clips_meta_file, "w", encoding="utf-8") as f:
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"ok": True})
+
+@app.route("/api/match/<beelup_id>", methods=["DELETE"])
+def delete_match(beelup_id):
+    """Delete all video/zip files for a given match (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
+    if not _safe_id(beelup_id):
+        return jsonify({"error": "ID inválido"}), 400
+    dl_dir = downloader_core.DOWNLOAD_DIR
+    deleted = []
+    try:
+        for fname in list(os.listdir(dl_dir)):
+            fpath = os.path.join(dl_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            if fname.endswith((".mp4", ".ts")):
+                m = re.search(r"^(?:\d{4}-\d{2}-\d{2}_)?video_(\w+?)(?:_(central|izq|der))?\.(mp4|ts)$", fname)
+                if m and m.group(1) == beelup_id:
+                    os.remove(fpath)
+                    deleted.append(fname)
+            elif fname.endswith(".zip") and f"_{beelup_id}_todas_las_camaras_" in fname:
+                os.remove(fpath)
+                deleted.append(fname)
+        meta_file = os.path.join(dl_dir, "metadata.json")
+        if os.path.exists(meta_file):
+            with open(meta_file, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            if beelup_id in meta:
+                del meta[beelup_id]
+                with open(meta_file, "w", encoding="utf-8") as f:
+                    json.dump(meta, f, ensure_ascii=False, indent=2)
+        clips_dir = os.path.join(dl_dir, "clips")
+        clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+        if os.path.exists(clips_meta_file):
+            with open(clips_meta_file, "r", encoding="utf-8") as f:
+                clips_meta = json.load(f)
+            to_remove = [k for k, v in clips_meta.items() if v.get("match_id") == beelup_id]
+            for clip_fname in to_remove:
+                clip_path = os.path.join(clips_dir, clip_fname)
+                if os.path.exists(clip_path):
+                    os.remove(clip_path)
+                    deleted.append(f"clips/{clip_fname}")
+                clips_meta.pop(clip_fname, None)
+            with open(clips_meta_file, "w", encoding="utf-8") as f:
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/clip_status")
+def clip_status():
+    """Check if ffmpeg is available for server-side clipping."""
+    try:
+        subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return jsonify({"available": True})
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return jsonify({"available": False})
+
 @app.route("/api/file_zip/<beelup_id>")
 def download_zip(beelup_id):
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     if not _safe_id(beelup_id):
         return jsonify({"error": "ID inválido"}), 400
     zip_path = downloader_core.get_zip_path(beelup_id)
@@ -213,6 +516,8 @@ def download_zip(beelup_id):
 
 @app.route("/api/download", methods=["POST"])
 def start_download():
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     data = request.json or {}
     raw_input = data.get("url_or_id", "").strip()
     camara    = data.get("camara", "").strip()
@@ -247,6 +552,8 @@ def get_progress(beelup_id):
 
 @app.route("/api/file/<beelup_id>")
 def download_file(beelup_id):
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     if not _safe_id(beelup_id):
         return jsonify({"error": "ID inválido"}), 400
 

@@ -1,0 +1,24 @@
+services:
+  beelup-downloader-test:
+    # Imagen de prueba desde Docker Hub (rama feature/test-player-controls)
+    image: ${DOCKER_USERNAME:-blu777}/beelup-downloader:test
+    container_name: beelup-downloader-test
+    ports:
+      - "5001:5000"
+    volumes:
+      # IMPORTANTE: Ajusta estas rutas según tu configuración de TrueNAS
+      # Formato: /mnt/<pool>/<dataset>/<carpeta>:/app/<destino>
+      - /mnt/tank/beelup-test/downloads:/app/downloads
+      - /mnt/tank/beelup-test/temp:/app/temp
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ADMIN_PIN=
+      - SECRET_KEY=change-me-in-production
+    restart: unless-stopped
+
+    # Opcional: Recursos limitados para entorno de prueba
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1'
+    #       memory: 1G

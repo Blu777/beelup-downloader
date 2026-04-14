@@ -1,0 +1,57 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# GitHub
+.github/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+readme.md
+MIGRATION_GUIDE.md
+beelup_info.txt
+urls_out.txt
+
+# Scripts (not needed in image)
+scripts/
+start_bot.bat
+download_ts.py
+
+# Deprecated
+deprecated/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Environment
+.env
+.env.local
+*.key
+*.pem
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+downloads/
+temp/
+*.ts
+*.mp4
+*.log
+
+# Test files
+test_*.py

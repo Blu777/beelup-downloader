@@ -414,6 +414,14 @@
         border-radius: 5px;
       }
 
+      /* Skip buttons */
+      .skip-btn {
+        font-size: 0.82rem !important;
+        font-weight: 700;
+        min-width: 36px;
+        letter-spacing: -0.02em;
+      }
+
       /* Reset zoom btn (in ctrl) */
       .reset-z {
         font-size: 0.78rem !important;
@@ -526,6 +534,99 @@
         display: none;
       }
 
+      /* Clip panel */
+      .clip-panel {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        padding: 0.45rem 1rem;
+        background: var(--surf2);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+        font-size: 0.78rem;
+      }
+      .clip-panel.visible {
+        display: flex;
+      }
+      .clip-panel-lbl {
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+      .clip-time-badge {
+        padding: 0.22rem 0.55rem;
+        border-radius: 6px;
+        background: rgba(99,102,241,0.15);
+        border: 1px solid rgba(99,102,241,0.35);
+        color: var(--text);
+        font-size: 0.75rem;
+        font-weight: 700;
+        min-width: 70px;
+        text-align: center;
+      }
+      .clip-time-badge.set {
+        background: rgba(99,102,241,0.3);
+        border-color: var(--accent);
+      }
+      .clip-btn {
+        padding: 0.28rem 0.7rem;
+        border-radius: 7px;
+        border: 1.5px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        font-family: "Outfit", sans-serif;
+        font-size: 0.76rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .clip-btn:hover {
+        background: rgba(99,102,241,0.12);
+        border-color: rgba(99,102,241,0.5);
+        color: var(--text);
+      }
+      .clip-btn.primary {
+        background: linear-gradient(135deg,var(--accent),var(--accent2));
+        border-color: transparent;
+        color: #fff;
+      }
+      .clip-btn.primary:hover {
+        opacity: 0.88;
+      }
+      .clip-btn.primary:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .clip-btn.danger {
+        border-color: rgba(239,68,68,0.4);
+        color: rgba(239,68,68,0.85);
+      }
+      .clip-btn.danger:hover {
+        background: rgba(239,68,68,0.12);
+        border-color: rgba(239,68,68,0.7);
+        color: #ef4444;
+      }
+      .clip-progress {
+        font-size: 0.72rem;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .clip-spacer { flex: 1; }
+
+      /* Rotated video: Cancha 31 + Camera 3 */
+      .video-rotated-90 {
+        transform: rotate(90deg) !important;
+        transform-origin: center center !important;
+        width: var(--rot-size) !important;
+        height: var(--rot-size) !important;
+      }
+      .zoom-wrap.rotation-active {
+        overflow: visible;
+      }
+
       /* Camera tab bar */
       .cam-bar {
         display: none;
@@ -588,9 +689,76 @@
         color: var(--text);
         border-color: rgba(255, 255, 255, 0.25);
       }
+
+      /* Scrubber wrap — for clip markers overlay */
+      .scrubber-wrap {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .scrubber-markers {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .clip-marker {
+        position: absolute;
+        width: 3px;
+        height: 13px;
+        background: #facc15;
+        border-radius: 1.5px;
+        top: -6.5px;
+        transform: translateX(-50%);
+        opacity: 0.9;
+      }
+      .clip-marker:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.88);
+        color: #facc15;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.2rem 0.45rem;
+        border-radius: 4px;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      /* Match clips view */
+      #matchClipsView {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
+    <!-- ═══ ADMIN MODAL ═══ -->
+    <div id="adminModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;min-width:300px;display:flex;flex-direction:column;gap:1rem;">
+        <div style="font-weight:700;font-size:1rem;">&#128274; Acceso Admin</div>
+        <input id="adminPinInput" type="password" placeholder="PIN" autocomplete="current-password"
+          style="padding:0.6rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:var(--surf2);color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;"/>
+        <div id="adminPinError" style="color:#ef4444;font-size:0.78rem;display:none;"></div>
+        <div style="display:flex;gap:0.5rem;">
+          <button onclick="_submitAdminPin()" style="flex:1;padding:0.55rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;">Entrar</button>
+          <button onclick="_closeAdminModal()" style="padding:0.55rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;cursor:pointer;">Cancelar</button>
+        </div>
+        <div id="adminLogoutRow" style="display:none;border-top:1px solid var(--border);padding-top:0.75rem;">
+          <button onclick="_adminLogout()" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-family:inherit;cursor:pointer;font-size:0.82rem;">&#x2715; Cerrar sesión admin</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ GALLERY VIEW ═══ -->
     <div id="galleryView">
       <header class="g-header">
@@ -601,7 +769,8 @@
             >(v{{ version }})</span
           ></span
         >
-        <a href="/" class="back">← Descargar</a>
+        <button id="galleryAdminBtn" onclick="_openAdminModal()" style="margin-left:auto;font-size:0.78rem;color:var(--muted);cursor:pointer;padding:0.3rem 0.75rem;border:1px solid var(--border);border-radius:7px;background:none;font-family:inherit;transition:all 0.2s;">&#128274; Admin</button>
+        <a href="/admin" class="back admin-only" style="margin-left:0;">&#8592; Descargar</a>
       </header>
       <div class="g-body">
         <div class="g-section-title">Partidos descargados</div>
@@ -610,6 +779,25 @@
             <div style="font-size: 2rem; margin-bottom: 0.5rem">⏳</div>
             Cargando partidos...
           </div>
+        </div>
+        <div class="g-section-title" style="margin-top:2rem;">Clips guardados</div>
+        <div class="match-grid" id="clipsGrid">
+          <div class="g-empty">Cargando clips...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MATCH CLIPS VIEW ═══ -->
+    <div id="matchClipsView" style="display:none;">
+      <header class="g-header">
+        <div class="g-logo">B-<span>Downloader</span></div>
+        <span class="g-subtitle" id="mcvTitle">Clips del partido</span>
+        <a href="#" id="mcvWatchBtn" class="back" style="margin-left:auto;">▶ Ver partido completo</a>
+        <a href="/" class="back" style="margin-left:0.5rem;">← Biblioteca</a>
+      </header>
+      <div class="g-body">
+        <div class="match-grid" id="mcvGrid">
+          <div class="g-empty">Cargando clips...</div>
         </div>
       </div>
     </div>
@@ -632,19 +820,24 @@
         <div class="ctrl-bar" id="ctrlBar">
           <div class="progress-row">
             <span class="time-str" id="timeStr">0:00 / 0:00</span>
-            <input
-              type="range"
-              class="scrubber"
-              id="scrubber"
-              min="0"
-              max="1000"
-              value="0"
-              step="1"
-            />
+            <div class="scrubber-wrap" id="scrubberWrap">
+              <input
+                type="range"
+                class="scrubber"
+                id="scrubber"
+                min="0"
+                max="1000"
+                value="0"
+                step="1"
+              />
+              <div class="scrubber-markers" id="scrubberMarkers"></div>
+            </div>
           </div>
           <div class="btn-row">
             <button class="ctrl-btn play-btn" id="playBtn">▶</button>
-            <button class="ctrl-btn" id="muteBtn">�</button>
+            <button class="ctrl-btn skip-btn" id="skipBackBtn" title="Retroceder 5 segundos">«5s</button>
+            <button class="ctrl-btn skip-btn" id="skipFwdBtn" title="Adelantar 5 segundos">5s»</button>
+            <button class="ctrl-btn" id="muteBtn">🔊</button>
             <input
               type="range"
               class="vol-slider"
@@ -676,11 +869,25 @@
             >
               ✕ zoom
             </button>
+            <button class="ctrl-btn admin-only" id="clipToggleBtn" title="Grabar clip">✂</button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
 
         <button class="zoom-reset-corner" id="zoomCorner">✕ Reset zoom</button>
+      </div>
+
+      <!-- Clip panel -->
+      <div class="clip-panel" id="clipPanel">
+        <span class="clip-panel-lbl">✂ Clip:</span>
+        <button class="clip-btn" id="clipInBtn">▷ Marcar inicio</button>
+        <span class="clip-time-badge" id="clipInBadge">--:--</span>
+        <button class="clip-btn" id="clipOutBtn">◁ Marcar fin</button>
+        <span class="clip-time-badge" id="clipOutBadge">--:--</span>
+        <span class="clip-spacer"></span>
+        <span class="clip-progress" id="clipProgress"></span>
+        <button class="clip-btn primary" id="clipRecBtn" disabled>⬇ Generar clip</button>
+        <button class="clip-btn danger" id="clipResetBtn">✕ Resetear</button>
       </div>
 
       <div class="cam-bar" id="camBar">
@@ -690,15 +897,18 @@
         <a
           href="#"
           id="playerDlBtn"
-          class="close-btn"
+          class="close-btn admin-only"
           style="color: #a855f7; border-color: rgba(168, 85, 247, 0.4)"
           download
           >⬇ Descargar cámara</a
         >
-        <a href="/player" class="close-btn">← Biblioteca</a>
+        <button class="close-btn" id="adminBtn" onclick="_openAdminModal()" style="cursor:pointer;background:none;border:1px solid var(--border)">&#128274; Admin</button>
+        <a href="/" class="close-btn">← Biblioteca</a>
+        <a href="/manage" class="close-btn admin-only" style="color:#a855f7;border-color:rgba(168,85,247,0.4);">⬇ Gestionar</a>
       </div>
     </div>
 
+    <script type="application/json" id="__serverData">{"isAdmin":{{ is_admin | tojson }},"forceAdminModal":{{ (_force_admin_modal is defined and _force_admin_modal) | tojson }}}</script>
     <script>
       // ── elements ────────────────────────────────────────────────
       const galleryView = document.getElementById("galleryView");
@@ -723,6 +933,17 @@
       const matchTitle = document.getElementById("matchTitle");
       const speedBtn = document.getElementById("speedBtn");
       const speedMenu = document.getElementById("speedMenu");
+      const skipBackBtn = document.getElementById("skipBackBtn");
+      const skipFwdBtn  = document.getElementById("skipFwdBtn");
+      const clipToggleBtn = document.getElementById("clipToggleBtn");
+      const clipPanel     = document.getElementById("clipPanel");
+      const clipInBtn     = document.getElementById("clipInBtn");
+      const clipOutBtn    = document.getElementById("clipOutBtn");
+      const clipInBadge   = document.getElementById("clipInBadge");
+      const clipOutBadge  = document.getElementById("clipOutBadge");
+      const clipRecBtn    = document.getElementById("clipRecBtn");
+      const clipResetBtn  = document.getElementById("clipResetBtn");
+      const clipProgress  = document.getElementById("clipProgress");
 
       // ── zoom / pan ───────────────────────────────────────────────
       let scale = 1,
@@ -736,9 +957,33 @@
       const MIN_Z = 1,
         MAX_Z = 8;
 
+      // ── rotation state ───────────────────────────────────────────
+      let _rotationActive = false;
+
+      function applyRotation(active) {
+        _rotationActive = active;
+        if (active) {
+          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+          videoPlayer.style.setProperty("--rot-size", sz + "px");
+          videoPlayer.classList.add("video-rotated-90");
+          zoomWrap.classList.add("rotation-active");
+        } else {
+          videoPlayer.classList.remove("video-rotated-90");
+          zoomWrap.classList.remove("rotation-active");
+          videoPlayer.style.removeProperty("--rot-size");
+        }
+      }
+
       function applyT() {
-        videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
-        videoPlayer.style.transformOrigin = "center center";
+        if (_rotationActive) {
+          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+          videoPlayer.style.setProperty("--rot-size", sz + "px");
+          videoPlayer.style.transform = `rotate(90deg) scale(${scale}) translate(${panX}px,${panY}px)`;
+          videoPlayer.style.transformOrigin = "center center";
+        } else {
+          videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
+          videoPlayer.style.transformOrigin = "center center";
+        }
         const z = scale > 1.01;
         dragOverlay.style.pointerEvents = z ? "all" : "none";
         dragOverlay.style.cursor = z
@@ -814,8 +1059,7 @@
       resetZBtn.addEventListener("click", resetZ);
       zoomCorner.addEventListener("click", resetZ);
 
-      // ── custom controls ─────────────────────────────────────────
-      let isScrubbing = false;
+      // ── time formatter (used by controls & clip) ─────────────────
       const fmt = (s) => {
         s = Math.floor(s || 0);
         const h = Math.floor(s / 3600),
@@ -825,6 +1069,159 @@
           ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
           : `${m}:${String(ss).padStart(2, "0")}`;
       };
+
+      // ── skip buttons ─────────────────────────────────────────────
+      skipBackBtn.addEventListener("click", () => {
+        videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 5);
+      });
+      skipFwdBtn.addEventListener("click", () => {
+        videoPlayer.currentTime = Math.min(
+          videoPlayer.duration || 0,
+          videoPlayer.currentTime + 5
+        );
+      });
+
+      // ── admin state ──────────────────────────────────────────────
+      const __sd = JSON.parse(document.getElementById('__serverData').textContent);
+      let _isAdmin = __sd.isAdmin;
+      const _forceAdminModal = __sd.forceAdminModal;
+
+      // Immediate hide of admin elements to prevent flash
+      if (!_isAdmin) {
+        document.querySelectorAll(".admin-only").forEach(el => el.style.display = "none");
+      }
+
+      function _applyAdminUI() {
+        document.querySelectorAll(".admin-only").forEach(el => {
+          el.style.display = _isAdmin ? "" : "none";
+        });
+        const btn = document.getElementById("adminBtn");
+        if (btn) btn.textContent = _isAdmin ? "🔓 Admin" : "🔒 Admin";
+      }
+
+      // ── clip functionality ───────────────────────────────────────
+      let clipInTime  = null;
+      let clipOutTime = null;
+      let clipRecording = false;
+      let _currentClipFilename = null;
+      let _currentMatchId = null;
+      let _currentCamId = null;
+      let _clipAbortController = null;
+
+      clipToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        clipPanel.classList.toggle("visible");
+        clipToggleBtn.style.color = clipPanel.classList.contains("visible")
+          ? "var(--accent)"
+          : "";
+      });
+
+      clipInBtn.addEventListener("click", () => {
+        clipInTime = videoPlayer.currentTime;
+        clipInBadge.textContent = fmt(clipInTime);
+        clipInBadge.classList.add("set");
+        _updateClipRecBtn();
+      });
+
+      clipOutBtn.addEventListener("click", () => {
+        clipOutTime = videoPlayer.currentTime;
+        clipOutBadge.textContent = fmt(clipOutTime);
+        clipOutBadge.classList.add("set");
+        _updateClipRecBtn();
+      });
+
+      function _updateClipRecBtn() {
+        const ready =
+          clipInTime !== null &&
+          clipOutTime !== null &&
+          clipOutTime > clipInTime;
+        clipRecBtn.disabled = !ready;
+        clipRecBtn.title = ready
+          ? `Generar clip de ${fmt(clipOutTime - clipInTime)}`
+          : "Marca inicio y fin válidos";
+      }
+
+      clipResetBtn.addEventListener("click", () => {
+        clipInTime = clipOutTime = null;
+        clipInBadge.textContent = "--:--";
+        clipOutBadge.textContent = "--:--";
+        clipInBadge.classList.remove("set");
+        clipOutBadge.classList.remove("set");
+        clipRecBtn.disabled = true;
+        clipProgress.textContent = "";
+        if (clipRecording && _clipAbortController) {
+          _clipAbortController.abort();
+          clipRecording = false;
+        }
+      });
+
+      clipRecBtn.addEventListener("click", async () => {
+        if (clipRecording) return;
+        if (clipInTime === null || clipOutTime === null || clipOutTime <= clipInTime) return;
+        if (!_currentClipFilename) return;
+
+        clipProgress.textContent = "Generando clip MP4…";
+        clipRecBtn.disabled = true;
+        clipRecording = true;
+
+        _clipAbortController = new AbortController();
+
+        const url = `/api/clip/${encodeURIComponent(_currentClipFilename)}` +
+          `?start=${clipInTime.toFixed(3)}&end=${clipOutTime.toFixed(3)}` +
+          `&match_id=${encodeURIComponent(_currentMatchId || "")}` +
+          `&cam_id=${encodeURIComponent(_currentCamId || "")}`;
+
+        try {
+          const res = await fetch(url, { signal: _clipAbortController.signal });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err.error || res.statusText);
+          }
+
+          const contentLength = res.headers.get("Content-Length");
+          const reader = res.body.getReader();
+          const chunks = [];
+          let received = 0;
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            if (contentLength) {
+              const pct = Math.round((received / parseInt(contentLength)) * 100);
+              clipProgress.textContent = `Descargando… ${pct}%`;
+            } else {
+              clipProgress.textContent = `Descargando… ${(received / 1024 / 1024).toFixed(1)} MB`;
+            }
+          }
+
+          const blob = new Blob(chunks, { type: "video/mp4" });
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1000);
+          clipProgress.textContent = `✓ Clip descargado (${(blob.size / 1024 / 1024).toFixed(1)} MB)`;
+
+        } catch (err) {
+          if (err.name === "AbortError") {
+            clipProgress.textContent = "Cancelado.";
+          } else {
+            clipProgress.textContent = `Error: ${err.message}`;
+          }
+        } finally {
+          clipRecording = false;
+          clipRecBtn.disabled = false;
+          _clipAbortController = null;
+        }
+      });
+
+      // ── custom controls ─────────────────────────────────────────
+      let isScrubbing = false;
 
       videoPlayer.addEventListener("timeupdate", () => {
         if (isScrubbing) return;
@@ -1048,10 +1445,21 @@
       });
 
       // ── play a camera ────────────────────────────────────────────
-      function playCamera(cam, isMulti, keepTime = false) {
+      function playCamera(cam, isMulti, keepTime = false, matchMeta) {
         const t = keepTime ? videoPlayer.currentTime : 0;
+        _currentClipFilename = cam.filename;
+        _currentMatchId = matchMeta ? matchMeta.id : null;
+        _currentCamId   = cam.cam_id || "";
         videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         videoPlayer.load();
+
+        // Cancha 31 + Cámara 3 (der) → rotate 90°
+        const needsRotation =
+          matchMeta &&
+          String(matchMeta.cancha) === "31" &&
+          cam.cam_id === "der";
+        applyRotation(!!needsRotation);
+
         if (isMulti) {
           scale = 2;
           panX = 0;
@@ -1062,6 +1470,7 @@
           "loadedmetadata",
           () => {
             if (t > 0 && t < videoPlayer.duration) videoPlayer.currentTime = t;
+            renderScrubberMarkers();
             // First unmute after user gesture on first play
             videoPlayer
               .play()
@@ -1100,7 +1509,7 @@
               .querySelectorAll(".cam-tab")
               .forEach((b) => b.classList.remove("active"));
             btn.classList.add("active");
-            playCamera(cam, isMulti, true);
+            playCamera(cam, isMulti, true, match);
             updateDlBtn(cam);
           });
           camTabs.appendChild(btn);
@@ -1120,16 +1529,19 @@
       // ── gallery ──────────────────────────────────────────────────
       async function loadGallery() {
         try {
-          const res = await fetch("/api/videos");
-          const data = await res.json();
-          renderGallery(data.matches || []);
+          const [vRes, cRes] = await Promise.all([fetch("/api/videos"), fetch("/api/clips")]);
+          const { matches = [] } = await vRes.json();
+          const { groups = [] } = await cRes.json();
+          const clipsByMatch = {};
+          groups.forEach(g => { clipsByMatch[g.match_id] = g.clips.length; });
+          renderGallery(matches, clipsByMatch);
         } catch {
           matchGrid.innerHTML =
             '<div class="g-empty">Error cargando partidos</div>';
         }
       }
 
-      function renderGallery(matches) {
+      function renderGallery(matches, clipsByMatch = {}) {
         if (!matches.length) {
           matchGrid.innerHTML = `<div class="g-empty">
             <div style="font-size:2.5rem;margin-bottom:.75rem">📂</div>
@@ -1148,12 +1560,14 @@
               : `${totalMB.toFixed(0)} MB`;
 
           let dlBtnsHtml = "";
-          match.cameras.forEach((c) => {
-            const camParam = c.cam_id
-              ? `?camara=${encodeURIComponent(c.cam_id)}`
-              : "";
-            dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
-          });
+          if (_isAdmin) {
+            match.cameras.forEach((c) => {
+              const camParam = c.cam_id
+                ? `?camara=${encodeURIComponent(c.cam_id)}`
+                : "";
+              dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
+            });
+          }
 
           const dateStr = match.date
             ? `📅 ${match.date} (ID: ${match.id})`
@@ -1185,8 +1599,11 @@
                     <span>${isMulti ? match.cameras.map((c) => c.label).join(" · ") : "Cámara única"}</span>
                     <span>${sz} total</span>
                 </div>
-                <button class="card-play-btn">▶ Reproducir</button>
-                <div class="dl-row">${dlBtnsHtml}</div>
+                <div style="display:flex;gap:0.4rem;margin-top:0.85rem;">
+                  <button class="card-play-btn" style="flex:1;" onclick="event.stopPropagation();window.open('/player?id=${match.id}','_blank')">▶ Partido</button>
+                  ${clipsByMatch[match.id] ? `<button class="card-play-btn" style="flex:0 0 auto;background:rgba(99,102,241,0.2);border:1.5px solid rgba(99,102,241,0.5);" onclick="event.stopPropagation();window.open('/player?id=${match.id}&view=clips','_blank')">✂ ${clipsByMatch[match.id]}</button>` : ""}
+                </div>
+                ${_isAdmin ? `<div class="dl-row">${dlBtnsHtml}</div>` : ""}
             </div>`;
           card.addEventListener("click", () =>
             window.open(`/player?id=${match.id}`, "_blank"),
@@ -1199,22 +1616,309 @@
       async function initPlayer(id) {
         galleryView.style.display = "none";
         playerView.style.display = "flex";
+        document.getElementById("matchClipsView").style.display = "none";
 
         const res = await fetch("/api/videos");
         const data = await res.json();
         const match = (data.matches || []).find((m) => m.id === id);
-        if (!match) return;
+        if (!match) {
+          playerView.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:1rem;color:var(--text-dim);padding:2rem;text-align:center;">
+            <div style="font-size:3rem;">🎬</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--text);">Partido no encontrado</div>
+            <div style="font-size:0.85rem;opacity:0.65;">Los archivos de este partido ya no están disponibles.</div>
+            <a href="/" style="margin-top:0.5rem;padding:0.5rem 1.4rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">← Ir a la biblioteca</a>
+          </div>`;
+          return;
+        }
 
         renderCamTabs(match);
-        playCamera(match.cameras[0], match.cameras.length > 1, false);
+        playCamera(match.cameras[0], match.cameras.length > 1, false, match);
+        loadClipsForTimeline(id);
+      }
+
+      // ── admin modal ──────────────────────────────────────────────
+      const adminModal    = document.getElementById("adminModal");
+      const adminPinInput = document.getElementById("adminPinInput");
+      const adminPinError = document.getElementById("adminPinError");
+      const adminLogoutRow = document.getElementById("adminLogoutRow");
+
+      function _openAdminModal() {
+        adminPinError.style.display = "none";
+        adminPinInput.value = "";
+        adminLogoutRow.style.display = _isAdmin ? "" : "none";
+        adminModal.style.display = "flex";
+        setTimeout(() => adminPinInput.focus(), 50);
+      }
+      function _closeAdminModal() {
+        adminModal.style.display = "none";
+      }
+      adminModal.addEventListener("click", (e) => {
+        if (e.target === adminModal) _closeAdminModal();
+      });
+      adminPinInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") _submitAdminPin();
+      });
+
+      async function _submitAdminPin() {
+        const pin = adminPinInput.value.trim();
+        if (!pin) return;
+        try {
+          const res = await fetch("/api/admin/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin }),
+          });
+          if (res.ok) {
+            _isAdmin = true;
+            _applyAdminUI();
+            _closeAdminModal();
+            loadClips();
+            if (_forceAdminModal) window.location.href = "/admin";
+          } else {
+            const d = await res.json().catch(() => ({}));
+            adminPinError.textContent = d.error || "PIN incorrecto";
+            adminPinError.style.display = "";
+            adminPinInput.value = "";
+            adminPinInput.focus();
+          }
+        } catch {
+          adminPinError.textContent = "Error de conexión";
+          adminPinError.style.display = "";
+        }
+      }
+
+      async function _adminLogout() {
+        await fetch("/api/admin/logout", { method: "POST" });
+        _isAdmin = false;
+        _applyAdminUI();
+        _closeAdminModal();
+        loadClips();
+      }
+
+      // ── clips gallery ────────────────────────────────────────────
+      const clipsGrid = document.getElementById("clipsGrid");
+
+      const fmtTime = (s) => {
+        if (s == null) return "--:--";
+        s = Math.floor(s);
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+        return h
+          ? `${h}:${String(m).padStart(2,"0")}:${String(ss).padStart(2,"0")}`
+          : `${m}:${String(ss).padStart(2,"0")}`;
+      };
+
+      async function loadClips() {
+        if (!clipsGrid) return;
+        clipsGrid.innerHTML = '<div class="g-empty">Cargando clips...</div>';
+        try {
+          const res  = await fetch("/api/clips");
+          const data = await res.json();
+          renderClips(data.groups || []);
+        } catch {
+          clipsGrid.innerHTML = '<div class="g-empty">Error cargando clips</div>';
+        }
+      }
+
+      function renderClips(groups) {
+        if (!groups.length) {
+          clipsGrid.innerHTML = '<div class="g-empty">No hay clips guardados aún.<br>Usá el botón ✂ en el reproductor para generar uno.</div>';
+          return;
+        }
+        clipsGrid.innerHTML = "";
+        groups.forEach((group) => {
+          const title = group.match_title || `Partido #${group.match_id}`;
+          const section = document.createElement("div");
+          section.style.cssText = "grid-column:1/-1;";
+          section.innerHTML = `<div style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border);">📂 ${title}</div>`;
+          clipsGrid.appendChild(section);
+
+          group.clips.forEach((clip) => {
+            const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
+            const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+            const card = document.createElement("div");
+            card.className = "match-card";
+            card.innerHTML = `
+              <div class="card-thumb" style="height:90px;font-size:2rem;">
+                ✂
+                ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+              </div>
+              <div class="card-body">
+                <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
+                <div class="card-meta">
+                  ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
+                  <span>${clip.size_mb} MB</span>
+                </div>
+                <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
+                  <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                     target="_blank"
+                     style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
+                    ▶ Reproducir
+                  </a>
+                  ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                     download="${clip.filename}"
+                     style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
+                    ⬇ Descargar
+                  </a>` : ""}
+                  ${_isAdmin ? `<button onclick="_deleteClip('${clip.filename}', this)"
+                     style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
+                    ✕
+                  </button>` : ""}
+                </div>
+              </div>`;
+            clipsGrid.appendChild(card);
+          });
+        });
+      }
+
+      async function _deleteClip(filename, btn) {
+        if (!confirm(`¿Eliminar clip "${filename}"?`)) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/clips/delete/${encodeURIComponent(filename)}`, { method: "DELETE" });
+          if (res.ok) {
+            loadClips();
+          } else {
+            const d = await res.json().catch(() => ({}));
+            alert(d.error || "Error al eliminar");
+            btn.disabled = false;
+          }
+        } catch {
+          alert("Error de conexión");
+          btn.disabled = false;
+        }
+      }
+
+      // ── clip timeline markers ────────────────────────────────────
+      let _matchClipsData = [];
+
+      async function loadClipsForTimeline(matchId) {
+        try {
+          const res = await fetch("/api/clips");
+          const { groups = [] } = await res.json();
+          const group = groups.find(g => g.match_id === matchId);
+          _matchClipsData = group ? group.clips : [];
+        } catch {
+          _matchClipsData = [];
+        }
+        renderScrubberMarkers();
+      }
+
+      function renderScrubberMarkers() {
+        const container = document.getElementById("scrubberMarkers");
+        if (!container) return;
+        container.innerHTML = "";
+        const duration = videoPlayer.duration;
+        if (!duration || !_matchClipsData.length) return;
+        _matchClipsData.forEach(clip => {
+          if (clip.start == null) return;
+          if (_currentCamId && clip.cam_id && clip.cam_id !== _currentCamId) return;
+          const fraction = clip.start / duration;
+          if (fraction < 0 || fraction > 1) return;
+          const marker = document.createElement("div");
+          marker.className = "clip-marker";
+          marker.style.left = `calc(6.5px + ${fraction} * (100% - 13px))`;
+          marker.title = `Clip: ${fmt(clip.start)}`;
+          container.appendChild(marker);
+        });
+      }
+
+      // ── match clips view ─────────────────────────────────────────
+      async function initMatchClipsView(matchId) {
+        galleryView.style.display = "none";
+        playerView.style.display = "none";
+        const mcv = document.getElementById("matchClipsView");
+        mcv.style.display = "flex";
+        document.getElementById("mcvWatchBtn").href = `/player?id=${matchId}`;
+        try {
+          const [vRes, cRes] = await Promise.all([fetch("/api/videos"), fetch("/api/clips")]);
+          const { matches = [] } = await vRes.json();
+          const { groups = [] } = await cRes.json();
+          const match = matches.find(m => m.id === matchId);
+          if (match) {
+            const title = match.title || `Partido #${match.id}`;
+            const dateStr = match.date ? `${match.date} — ` : "";
+            document.getElementById("mcvTitle").textContent = `✂ Clips — ${dateStr}${title}`;
+          }
+          const group = groups.find(g => g.match_id === matchId);
+          renderMatchClipsView(group ? group.clips : [], matchId);
+        } catch {
+          document.getElementById("mcvGrid").innerHTML = '<div class="g-empty">Error cargando clips</div>';
+        }
+      }
+
+      function renderMatchClipsView(clips, matchId) {
+        const grid = document.getElementById("mcvGrid");
+        if (!clips.length) {
+          grid.innerHTML = '<div class="g-empty">No hay clips para este partido aún.<br>Usá el botón ✂ en el reproductor para generar uno.</div>';
+          return;
+        }
+        grid.innerHTML = "";
+        clips.forEach(clip => {
+          const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
+          const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+          const card = document.createElement("div");
+          card.className = "match-card";
+          card.innerHTML = `
+            <div class="card-thumb" style="height:90px;font-size:2rem;">
+              ✂
+              ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+            </div>
+            <div class="card-body">
+              <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
+              <div class="card-meta">
+                ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
+                <span>${clip.size_mb} MB</span>
+              </div>
+              <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
+                <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                   target="_blank"
+                   style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
+                  ▶ Reproducir
+                </a>
+                ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                   download="${clip.filename}"
+                   style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
+                  ⬇ Descargar
+                </a>` : ""}
+                ${_isAdmin ? `<button onclick="_deleteClipMcv('${clip.filename}','${matchId}',this)"
+                   style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
+                  ✕
+                </button>` : ""}
+              </div>
+            </div>`;
+          grid.appendChild(card);
+        });
+      }
+
+      async function _deleteClipMcv(filename, matchId, btn) {
+        if (!confirm(`¿Eliminar clip "${filename}"?`)) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/clips/delete/${encodeURIComponent(filename)}`, { method: "DELETE" });
+          if (res.ok) { initMatchClipsView(matchId); }
+          else {
+            const d = await res.json().catch(() => ({}));
+            alert(d.error || "Error al eliminar");
+            btn.disabled = false;
+          }
+        } catch { alert("Error de conexión"); btn.disabled = false; }
       }
 
       // ── bootstrap ────────────────────────────────────────────────
-      const urlId = new URLSearchParams(location.search).get("id");
-      if (urlId) {
+      const _urlParams = new URLSearchParams(location.search);
+      const urlId   = _urlParams.get("id");
+      const urlView = _urlParams.get("view");
+      if (urlId && urlView === "clips") {
+        _applyAdminUI();
+        initMatchClipsView(urlId);
+      } else if (urlId) {
         initPlayer(urlId);
+        _applyAdminUI();
       } else {
+        _applyAdminUI();
         loadGallery();
+        loadClips();
+        if (_forceAdminModal) _openAdminModal();
       }
     </script>
   </body>
