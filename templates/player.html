@@ -689,6 +689,56 @@
         color: var(--text);
         border-color: rgba(255, 255, 255, 0.25);
       }
+
+      /* Scrubber wrap — for clip markers overlay */
+      .scrubber-wrap {
+        flex: 1;
+        position: relative;
+        display: flex;
+        align-items: center;
+      }
+      .scrubber-markers {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 50%;
+        height: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .clip-marker {
+        position: absolute;
+        width: 3px;
+        height: 13px;
+        background: #facc15;
+        border-radius: 1.5px;
+        top: -6.5px;
+        transform: translateX(-50%);
+        opacity: 0.9;
+      }
+      .clip-marker:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.88);
+        color: #facc15;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.2rem 0.45rem;
+        border-radius: 4px;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      /* Match clips view */
+      #matchClipsView {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
@@ -737,6 +787,21 @@
       </div>
     </div>
 
+    <!-- ═══ MATCH CLIPS VIEW ═══ -->
+    <div id="matchClipsView" style="display:none;">
+      <header class="g-header">
+        <div class="g-logo">B-<span>Downloader</span></div>
+        <span class="g-subtitle" id="mcvTitle">Clips del partido</span>
+        <a href="#" id="mcvWatchBtn" class="back" style="margin-left:auto;">▶ Ver partido completo</a>
+        <a href="/" class="back" style="margin-left:0.5rem;">← Biblioteca</a>
+      </header>
+      <div class="g-body">
+        <div class="match-grid" id="mcvGrid">
+          <div class="g-empty">Cargando clips...</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══ PLAYER VIEW ═══ -->
     <div id="playerView">
       <div class="video-wrapper" id="videoWrapper">
@@ -755,15 +820,18 @@
         <div class="ctrl-bar" id="ctrlBar">
           <div class="progress-row">
             <span class="time-str" id="timeStr">0:00 / 0:00</span>
-            <input
-              type="range"
-              class="scrubber"
-              id="scrubber"
-              min="0"
-              max="1000"
-              value="0"
-              step="1"
-            />
+            <div class="scrubber-wrap" id="scrubberWrap">
+              <input
+                type="range"
+                class="scrubber"
+                id="scrubber"
+                min="0"
+                max="1000"
+                value="0"
+                step="1"
+              />
+              <div class="scrubber-markers" id="scrubberMarkers"></div>
+            </div>
           </div>
           <div class="btn-row">
             <button class="ctrl-btn play-btn" id="playBtn">▶</button>
@@ -1402,6 +1470,7 @@
           "loadedmetadata",
           () => {
             if (t > 0 && t < videoPlayer.duration) videoPlayer.currentTime = t;
+            renderScrubberMarkers();
             // First unmute after user gesture on first play
             videoPlayer
               .play()
@@ -1460,16 +1529,19 @@
       // ── gallery ──────────────────────────────────────────────────
       async function loadGallery() {
         try {
-          const res = await fetch("/api/videos");
-          const data = await res.json();
-          renderGallery(data.matches || []);
+          const [vRes, cRes] = await Promise.all([fetch("/api/videos"), fetch("/api/clips")]);
+          const { matches = [] } = await vRes.json();
+          const { groups = [] } = await cRes.json();
+          const clipsByMatch = {};
+          groups.forEach(g => { clipsByMatch[g.match_id] = g.clips.length; });
+          renderGallery(matches, clipsByMatch);
         } catch {
           matchGrid.innerHTML =
             '<div class="g-empty">Error cargando partidos</div>';
         }
       }
 
-      function renderGallery(matches) {
+      function renderGallery(matches, clipsByMatch = {}) {
         if (!matches.length) {
           matchGrid.innerHTML = `<div class="g-empty">
             <div style="font-size:2.5rem;margin-bottom:.75rem">📂</div>
@@ -1527,7 +1599,10 @@
                     <span>${isMulti ? match.cameras.map((c) => c.label).join(" · ") : "Cámara única"}</span>
                     <span>${sz} total</span>
                 </div>
-                <button class="card-play-btn">▶ Reproducir</button>
+                <div style="display:flex;gap:0.4rem;margin-top:0.85rem;">
+                  <button class="card-play-btn" style="flex:1;" onclick="event.stopPropagation();window.open('/player?id=${match.id}','_blank')">▶ Partido</button>
+                  ${clipsByMatch[match.id] ? `<button class="card-play-btn" style="flex:0 0 auto;background:rgba(99,102,241,0.2);border:1.5px solid rgba(99,102,241,0.5);" onclick="event.stopPropagation();window.open('/player?id=${match.id}&view=clips','_blank')">✂ ${clipsByMatch[match.id]}</button>` : ""}
+                </div>
                 ${_isAdmin ? `<div class="dl-row">${dlBtnsHtml}</div>` : ""}
             </div>`;
           card.addEventListener("click", () =>
@@ -1541,6 +1616,7 @@
       async function initPlayer(id) {
         galleryView.style.display = "none";
         playerView.style.display = "flex";
+        document.getElementById("matchClipsView").style.display = "none";
 
         const res = await fetch("/api/videos");
         const data = await res.json();
@@ -1549,6 +1625,7 @@
 
         renderCamTabs(match);
         playCamera(match.cameras[0], match.cameras.length > 1, false, match);
+        loadClipsForTimeline(id);
       }
 
       // ── admin modal ──────────────────────────────────────────────
@@ -1703,9 +1780,130 @@
         }
       }
 
+      // ── clip timeline markers ────────────────────────────────────
+      let _matchClipsData = [];
+
+      async function loadClipsForTimeline(matchId) {
+        try {
+          const res = await fetch("/api/clips");
+          const { groups = [] } = await res.json();
+          const group = groups.find(g => g.match_id === matchId);
+          _matchClipsData = group ? group.clips : [];
+        } catch {
+          _matchClipsData = [];
+        }
+        renderScrubberMarkers();
+      }
+
+      function renderScrubberMarkers() {
+        const container = document.getElementById("scrubberMarkers");
+        if (!container) return;
+        container.innerHTML = "";
+        const duration = videoPlayer.duration;
+        if (!duration || !_matchClipsData.length) return;
+        _matchClipsData.forEach(clip => {
+          if (clip.start == null) return;
+          if (_currentCamId && clip.cam_id && clip.cam_id !== _currentCamId) return;
+          const fraction = clip.start / duration;
+          if (fraction < 0 || fraction > 1) return;
+          const marker = document.createElement("div");
+          marker.className = "clip-marker";
+          marker.style.left = `calc(6.5px + ${fraction} * (100% - 13px))`;
+          marker.title = `Clip: ${fmt(clip.start)}`;
+          container.appendChild(marker);
+        });
+      }
+
+      // ── match clips view ─────────────────────────────────────────
+      async function initMatchClipsView(matchId) {
+        galleryView.style.display = "none";
+        playerView.style.display = "none";
+        const mcv = document.getElementById("matchClipsView");
+        mcv.style.display = "flex";
+        document.getElementById("mcvWatchBtn").href = `/player?id=${matchId}`;
+        try {
+          const [vRes, cRes] = await Promise.all([fetch("/api/videos"), fetch("/api/clips")]);
+          const { matches = [] } = await vRes.json();
+          const { groups = [] } = await cRes.json();
+          const match = matches.find(m => m.id === matchId);
+          if (match) {
+            const title = match.title || `Partido #${match.id}`;
+            const dateStr = match.date ? `${match.date} — ` : "";
+            document.getElementById("mcvTitle").textContent = `✂ Clips — ${dateStr}${title}`;
+          }
+          const group = groups.find(g => g.match_id === matchId);
+          renderMatchClipsView(group ? group.clips : [], matchId);
+        } catch {
+          document.getElementById("mcvGrid").innerHTML = '<div class="g-empty">Error cargando clips</div>';
+        }
+      }
+
+      function renderMatchClipsView(clips, matchId) {
+        const grid = document.getElementById("mcvGrid");
+        if (!clips.length) {
+          grid.innerHTML = '<div class="g-empty">No hay clips para este partido aún.<br>Usá el botón ✂ en el reproductor para generar uno.</div>';
+          return;
+        }
+        grid.innerHTML = "";
+        clips.forEach(clip => {
+          const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
+          const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+          const card = document.createElement("div");
+          card.className = "match-card";
+          card.innerHTML = `
+            <div class="card-thumb" style="height:90px;font-size:2rem;">
+              ✂
+              ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+            </div>
+            <div class="card-body">
+              <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
+              <div class="card-meta">
+                ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
+                <span>${clip.size_mb} MB</span>
+              </div>
+              <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
+                <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                   target="_blank"
+                   style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
+                  ▶ Reproducir
+                </a>
+                ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                   download="${clip.filename}"
+                   style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
+                  ⬇ Descargar
+                </a>` : ""}
+                ${_isAdmin ? `<button onclick="_deleteClipMcv('${clip.filename}','${matchId}',this)"
+                   style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
+                  ✕
+                </button>` : ""}
+              </div>
+            </div>`;
+          grid.appendChild(card);
+        });
+      }
+
+      async function _deleteClipMcv(filename, matchId, btn) {
+        if (!confirm(`¿Eliminar clip "${filename}"?`)) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch(`/api/clips/delete/${encodeURIComponent(filename)}`, { method: "DELETE" });
+          if (res.ok) { initMatchClipsView(matchId); }
+          else {
+            const d = await res.json().catch(() => ({}));
+            alert(d.error || "Error al eliminar");
+            btn.disabled = false;
+          }
+        } catch { alert("Error de conexión"); btn.disabled = false; }
+      }
+
       // ── bootstrap ────────────────────────────────────────────────
-      const urlId = new URLSearchParams(location.search).get("id");
-      if (urlId) {
+      const _urlParams = new URLSearchParams(location.search);
+      const urlId   = _urlParams.get("id");
+      const urlView = _urlParams.get("view");
+      if (urlId && urlView === "clips") {
+        _applyAdminUI();
+        initMatchClipsView(urlId);
+      } else if (urlId) {
         initPlayer(urlId);
         _applyAdminUI();
       } else {

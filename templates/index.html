@@ -314,7 +314,8 @@
                     <div class="card-meta">${meta.map(l => `<span>${l}</span>`).join('')}</div>
                     <div class="cam-pills">${camPills}</div>
                     <div class="card-actions">
-                        <a href="/player?id=${match.id}" class="btn btn-play">▶ Reproducir</a>
+                        <a href="/player?id=${match.id}" class="btn btn-play">▶ Partido</a>
+                        ${clips.length ? `<a href="/player?id=${match.id}&view=clips" class="btn btn-ghost">✂ ${clips.length} clip${clips.length>1?'s':''}</a>` : ''}
                         ${_isAdmin ? `
                             <a href="/api/file_zip/${match.id}" class="btn btn-ghost" download title="Descargar ZIP">⬇ ZIP</a>
                             <button class="btn btn-danger" title="Eliminar partido" onclick="_deleteMatch('${match.id}',this)">🗑</button>

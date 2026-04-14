@@ -403,13 +403,24 @@ async def _download_video_worker_async(beelup_id, camara=""):
         except (subprocess.CalledProcessError, FileNotFoundError):
             has_ffmpeg = False
 
+        # Cancha 31 right camera is physically mounted rotated 90° CCW — correct it.
+        needs_rotation = (playlist_cancha == "31" and camara == "der")
+
         if has_ffmpeg:
             try:
-                cmd = [
-                    "ffmpeg", "-y", "-i", ts_output_file,
-                    "-c", "copy", "-bsf:a", "aac_adtstoasc",
-                    mp4_output_file
-                ]
+                if needs_rotation:
+                    cmd = [
+                        "ffmpeg", "-y", "-i", ts_output_file,
+                        "-vf", "transpose=1",
+                        "-c:a", "copy",
+                        mp4_output_file
+                    ]
+                else:
+                    cmd = [
+                        "ffmpeg", "-y", "-i", ts_output_file,
+                        "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                        mp4_output_file
+                    ]
                 # Run ffmpeg with low priority to avoid crushing the system.
                 # On Windows use BELOW_NORMAL_PRIORITY_CLASS; on Linux/Docker use nice.
                 import sys
