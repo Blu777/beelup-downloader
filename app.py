@@ -72,7 +72,7 @@ def _extract_beelup_id(raw: str) -> str | None:
         return m.group(1) if m else None
     return _safe_id(raw)
 
-VERSION = "test"
+VERSION = "2.0"
 
 _COVERS = {
     "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
