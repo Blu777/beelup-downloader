@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_file, Response, make_response
+from flask import Flask, render_template, request, jsonify, send_file, Response, make_response, redirect
 import os
 import re
 import mimetypes
@@ -68,18 +68,21 @@ VERSION = "1.2.0"
 
 @app.route("/")
 def index():
-    from flask import redirect
-    return redirect("/player")
+    return render_template("index.html", version=VERSION, is_admin=_is_admin())
 
 @app.route("/player")
 def player():
     return render_template("player.html", version=VERSION, is_admin=_is_admin())
 
+@app.route("/manage")
+def manage_page():
+    if not _is_admin():
+        return render_template("index.html", version=VERSION, is_admin=False, _force_admin_modal=True)
+    return render_template("manage.html", version=VERSION, is_admin=True)
+
 @app.route("/admin")
 def admin_page():
-    if not _is_admin():
-        return render_template("player.html", version=VERSION, is_admin=False, _force_admin_modal=True)
-    return render_template("index.html", version=VERSION, is_admin=True)
+    return redirect("/manage")
 
 @app.route("/api/admin/login", methods=["POST"])
 def admin_login():
@@ -430,6 +433,41 @@ def delete_clip(filename):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
+
+@app.route("/api/match/<beelup_id>", methods=["DELETE"])
+def delete_match(beelup_id):
+    """Delete all video/zip files for a given match (admin only)."""
+    import json as _json
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
+    if not _safe_id(beelup_id):
+        return jsonify({"error": "ID inválido"}), 400
+    dl_dir = downloader_core.DOWNLOAD_DIR
+    deleted = []
+    try:
+        for fname in list(os.listdir(dl_dir)):
+            fpath = os.path.join(dl_dir, fname)
+            if not os.path.isfile(fpath):
+                continue
+            if fname.endswith((".mp4", ".ts")):
+                m = re.search(r"^(?:\d{4}-\d{2}-\d{2}_)?video_(\w+?)(?:_(central|izq|der))?\.(mp4|ts)$", fname)
+                if m and m.group(1) == beelup_id:
+                    os.remove(fpath)
+                    deleted.append(fname)
+            elif fname.endswith(".zip") and f"_{beelup_id}_todas_las_camaras_" in fname:
+                os.remove(fpath)
+                deleted.append(fname)
+        meta_file = os.path.join(dl_dir, "metadata.json")
+        if os.path.exists(meta_file):
+            with open(meta_file, "r", encoding="utf-8") as f:
+                meta = _json.load(f)
+            if beelup_id in meta:
+                del meta[beelup_id]
+                with open(meta_file, "w", encoding="utf-8") as f:
+                    _json.dump(meta, f, ensure_ascii=False, indent=2)
+        return jsonify({"ok": True, "deleted": deleted})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/clip_status")
 def clip_status():

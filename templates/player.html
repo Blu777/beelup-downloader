@@ -835,11 +835,12 @@
           >⬇ Descargar cámara</a
         >
         <button class="close-btn" id="adminBtn" onclick="_openAdminModal()" style="cursor:pointer;background:none;border:1px solid var(--border)">&#128274; Admin</button>
-        <a href="/player" class="close-btn">← Biblioteca</a>
-        <a href="/admin" class="close-btn admin-only" style="color:#a855f7;border-color:rgba(168,85,247,0.4);">⬇ Descargar nuevo</a>
+        <a href="/" class="close-btn">← Biblioteca</a>
+        <a href="/manage" class="close-btn admin-only" style="color:#a855f7;border-color:rgba(168,85,247,0.4);">⬇ Gestionar</a>
       </div>
     </div>
 
+    <script type="application/json" id="__serverData">{"isAdmin":{{ is_admin | tojson }},"forceAdminModal":{{ (_force_admin_modal is defined and _force_admin_modal) | tojson }}}</script>
     <script>
       // ── elements ────────────────────────────────────────────────
       const galleryView = document.getElementById("galleryView");
@@ -1013,8 +1014,9 @@
       });
 
       // ── admin state ──────────────────────────────────────────────
-      let _isAdmin = {{ 'true' if is_admin else 'false' }};
-      const _forceAdminModal = {{ 'true' if _force_admin_modal is defined and _force_admin_modal else 'false' }};
+      const __sd = JSON.parse(document.getElementById('__serverData').textContent);
+      let _isAdmin = __sd.isAdmin;
+      const _forceAdminModal = __sd.forceAdminModal;
 
       // Immediate hide of admin elements to prevent flash
       if (!_isAdmin) {
