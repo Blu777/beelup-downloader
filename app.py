@@ -186,12 +186,17 @@ def list_videos():
             # If we found a date from another camera file, populate it
             matches[match_id]["date"] = match_date
 
-        matches[match_id]["cameras"].append({
-            "cam_id":   cam_id,
-            "label":    _CAM_LABELS.get(cam_id, f"Cámara ({cam_id})"),
-            "filename": fname,
-            "size_mb":  size_mb,
-        })
+        existing_cam = next((c for c in matches[match_id]["cameras"] if c["cam_id"] == cam_id), None)
+        if existing_cam is None:
+            matches[match_id]["cameras"].append({
+                "cam_id":   cam_id,
+                "label":    _CAM_LABELS.get(cam_id, f"Cámara ({cam_id})"),
+                "filename": fname,
+                "size_mb":  size_mb,
+            })
+        elif fname.endswith(".mp4") and existing_cam["filename"].endswith(".ts"):
+            existing_cam["filename"] = fname
+            existing_cam["size_mb"]  = size_mb
 
     cam_order = ["izq", "central", "der", ""]
     for m in matches.values():
@@ -470,6 +475,20 @@ def delete_match(beelup_id):
                 del meta[beelup_id]
                 with open(meta_file, "w", encoding="utf-8") as f:
                     json.dump(meta, f, ensure_ascii=False, indent=2)
+        clips_dir = os.path.join(dl_dir, "clips")
+        clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+        if os.path.exists(clips_meta_file):
+            with open(clips_meta_file, "r", encoding="utf-8") as f:
+                clips_meta = json.load(f)
+            to_remove = [k for k, v in clips_meta.items() if v.get("match_id") == beelup_id]
+            for clip_fname in to_remove:
+                clip_path = os.path.join(clips_dir, clip_fname)
+                if os.path.exists(clip_path):
+                    os.remove(clip_path)
+                    deleted.append(f"clips/{clip_fname}")
+                clips_meta.pop(clip_fname, None)
+            with open(clips_meta_file, "w", encoding="utf-8") as f:
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
         return jsonify({"ok": True, "deleted": deleted})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -1621,7 +1621,15 @@
         const res = await fetch("/api/videos");
         const data = await res.json();
         const match = (data.matches || []).find((m) => m.id === id);
-        if (!match) return;
+        if (!match) {
+          playerView.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:1rem;color:var(--text-dim);padding:2rem;text-align:center;">
+            <div style="font-size:3rem;">🎬</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--text);">Partido no encontrado</div>
+            <div style="font-size:0.85rem;opacity:0.65;">Los archivos de este partido ya no están disponibles.</div>
+            <a href="/" style="margin-top:0.5rem;padding:0.5rem 1.4rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">← Ir a la biblioteca</a>
+          </div>`;
+          return;
+        }
 
         renderCamTabs(match);
         playCamera(match.cameras[0], match.cameras.length > 1, false, match);
