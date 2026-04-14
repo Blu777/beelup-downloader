@@ -1,13 +1,23 @@
-from flask import Flask, render_template, request, jsonify, send_file, Response, make_response, redirect
+from flask import Flask, render_template, request, jsonify, send_file, make_response, redirect
 import os
 import re
-import mimetypes
 import hmac
 import hashlib
+import json
+import subprocess
+import sys
 import downloader_core
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+
+@app.after_request
+def no_cache(response):
+    if "text/html" in response.content_type:
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 # ── Admin auth ────────────────────────────────────────────────────────────────
 ADMIN_PIN  = os.environ.get("ADMIN_PIN", "")
@@ -62,7 +72,19 @@ def _extract_beelup_id(raw: str) -> str | None:
         return m.group(1) if m else None
     return _safe_id(raw)
 
-VERSION = "1.2.0"
+VERSION = "test"
+
+_COVERS = {
+    "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
+    "MEGAFUTBOL": "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no"
+}
+
+_CAM_LABELS = {
+    "central": "Cámara 1 (Central)",
+    "izq":     "Cámara 2 (Izquierda)",
+    "der":     "Cámara 3 (Derecha)",
+    "":        "Cámara única",
+}
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +134,6 @@ def list_videos():
     dl_dir = downloader_core.DOWNLOAD_DIR
     matches = {}
 
-    import json
     meta_data = {}
     meta_file = os.path.join(dl_dir, "metadata.json")
     if os.path.exists(meta_file):
@@ -121,18 +142,6 @@ def list_videos():
                 meta_data = json.load(f)
         except Exception:
             pass
-
-    COVERS = {
-        "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
-        "MEGAFUTBOL": "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no"
-    }
-
-    cam_labels = {
-        "central": "Cámara 1 (Central)",
-        "izq":     "Cámara 2 (Izquierda)",
-        "der":     "Cámara 3 (Derecha)",
-        "":        "Cámara única",
-    }
 
     for fname in sorted(os.listdir(dl_dir)):
         if not (fname.endswith(".mp4") or fname.endswith(".ts")):
@@ -160,9 +169,9 @@ def list_videos():
             cover_url = ""
             upper_title = match_title.upper()
             if "CONTAINER" in upper_title:
-                cover_url = COVERS["CONTAINER"]
+                cover_url = _COVERS["CONTAINER"]
             elif "MEGAFUTBOL" in upper_title:
-                cover_url = COVERS["MEGAFUTBOL"]
+                cover_url = _COVERS["MEGAFUTBOL"]
                 
             matches[match_id] = {
                 "id":       match_id, 
@@ -179,7 +188,7 @@ def list_videos():
 
         matches[match_id]["cameras"].append({
             "cam_id":   cam_id,
-            "label":    cam_labels.get(cam_id, f"Cámara ({cam_id})"),
+            "label":    _CAM_LABELS.get(cam_id, f"Cámara ({cam_id})"),
             "filename": fname,
             "size_mb":  size_mb,
         })
@@ -271,7 +280,6 @@ def download_clip(filename):
     """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
-    import subprocess, sys, json as _json
     try:
         start     = float(request.args.get("start", 0))
         end       = float(request.args.get("end", 0))
@@ -328,7 +336,7 @@ def download_clip(filename):
             clips_meta = {}
             if os.path.exists(clips_meta_file):
                 with open(clips_meta_file, "r", encoding="utf-8") as f:
-                    clips_meta = _json.load(f)
+                    clips_meta = json.load(f)
             clips_meta[out_name] = {
                 "match_id": match_id,
                 "cam_id":   cam_id,
@@ -337,7 +345,7 @@ def download_clip(filename):
                 "filename": out_name,
             }
             with open(clips_meta_file, "w", encoding="utf-8") as f:
-                _json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
 
@@ -346,7 +354,6 @@ def download_clip(filename):
 @app.route("/api/clips")
 def list_clips():
     """List saved clips grouped by match_id, enriched with match metadata."""
-    import json as _json
     clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
     clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
     meta_file = os.path.join(downloader_core.DOWNLOAD_DIR, "metadata.json")
@@ -357,14 +364,14 @@ def list_clips():
     if os.path.exists(clips_meta_file):
         try:
             with open(clips_meta_file, "r", encoding="utf-8") as f:
-                clips_meta = _json.load(f)
+                clips_meta = json.load(f)
         except Exception:
             pass
 
     if os.path.exists(meta_file):
         try:
             with open(meta_file, "r", encoding="utf-8") as f:
-                match_meta = _json.load(f)
+                match_meta = json.load(f)
         except Exception:
             pass
 
@@ -412,7 +419,6 @@ def stream_clip(filename):
 @app.route("/api/clips/delete/<path:filename>", methods=["DELETE"])
 def delete_clip(filename):
     """Delete a saved clip (admin only)."""
-    import json as _json
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
     clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
@@ -426,10 +432,10 @@ def delete_clip(filename):
         clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
         if os.path.exists(clips_meta_file):
             with open(clips_meta_file, "r", encoding="utf-8") as f:
-                clips_meta = _json.load(f)
+                clips_meta = json.load(f)
             clips_meta.pop(filename, None)
             with open(clips_meta_file, "w", encoding="utf-8") as f:
-                _json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
@@ -437,7 +443,6 @@ def delete_clip(filename):
 @app.route("/api/match/<beelup_id>", methods=["DELETE"])
 def delete_match(beelup_id):
     """Delete all video/zip files for a given match (admin only)."""
-    import json as _json
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
     if not _safe_id(beelup_id):
@@ -460,11 +465,11 @@ def delete_match(beelup_id):
         meta_file = os.path.join(dl_dir, "metadata.json")
         if os.path.exists(meta_file):
             with open(meta_file, "r", encoding="utf-8") as f:
-                meta = _json.load(f)
+                meta = json.load(f)
             if beelup_id in meta:
                 del meta[beelup_id]
                 with open(meta_file, "w", encoding="utf-8") as f:
-                    _json.dump(meta, f, ensure_ascii=False, indent=2)
+                    json.dump(meta, f, ensure_ascii=False, indent=2)
         return jsonify({"ok": True, "deleted": deleted})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -472,7 +477,6 @@ def delete_match(beelup_id):
 @app.route("/api/clip_status")
 def clip_status():
     """Check if ffmpeg is available for server-side clipping."""
-    import subprocess
     try:
         subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         return jsonify({"available": True})

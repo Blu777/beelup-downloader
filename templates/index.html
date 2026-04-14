@@ -1,9 +1,9 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>B-Downloader â€“ Biblioteca</title>
+    <title>B-Downloader – Biblioteca</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
@@ -18,7 +18,7 @@
         }
         html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif; }
 
-        /* â”€â”€ Header â”€â”€ */
+        /* ── Header ── */
         .lib-header {
             display: flex; align-items: center; gap: 1rem;
             padding: 0 2rem; height: 60px;
@@ -41,19 +41,19 @@
         .h-btn.purple { color: #c084fc; border-color: rgba(168,85,247,0.4); }
         .h-btn.purple:hover { background: rgba(168,85,247,0.15); color: #fff; }
 
-        /* â”€â”€ Body â”€â”€ */
+        /* ── Body ── */
         .lib-body { padding: 2rem; max-width: 1400px; margin: 0 auto; }
 
-        /* â”€â”€ Section header â”€â”€ */
+        /* ── Section header ── */
         .sec-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem; margin-top: 2.5rem; }
         .sec-header:first-child { margin-top: 0; }
         .sec-title { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
         .sec-badge { font-size: 0.68rem; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12); padding: 0.1rem 0.45rem; border-radius: 20px; }
 
-        /* â”€â”€ Grid â”€â”€ */
+        /* ── Grid ── */
         .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
 
-        /* â”€â”€ Card â”€â”€ */
+        /* ── Card ── */
         .m-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
         .m-card:hover { border-color: rgba(99,102,241,0.35); box-shadow: 0 4px 24px rgba(99,102,241,0.1); }
         .card-thumb {
@@ -73,7 +73,7 @@
         .cam-pills { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
         .cam-pill { font-size: 0.62rem; font-weight: 600; padding: 0.13rem 0.38rem; border-radius: 4px; background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--muted); }
 
-        /* â”€â”€ Buttons â”€â”€ */
+        /* ── Buttons ── */
         .card-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
         .btn {
             display: inline-flex; align-items: center; gap: 0.25rem;
@@ -89,7 +89,7 @@
         .btn-danger:hover { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.6); color: var(--danger); }
         .btn-sm { padding: 0.22rem 0.45rem; font-size: 0.68rem; border-radius: 6px; }
 
-        /* â”€â”€ Clips â”€â”€ */
+        /* ── Clips ── */
         .clips-section { margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.6rem; }
         .clips-toggle { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; font-weight: 700; color: var(--muted); cursor: pointer; user-select: none; transition: color 0.15s; }
         .clips-toggle:hover { color: var(--text); }
@@ -101,68 +101,80 @@
         .clip-time { font-weight: 700; color: var(--text); flex: 1; }
         .clip-tag { font-size: 0.6rem; color: var(--muted); background: rgba(255,255,255,0.06); padding: 0.1rem 0.3rem; border-radius: 3px; }
 
-        /* â”€â”€ Empty â”€â”€ */
+        /* ── Empty ── */
         .empty { grid-column: 1/-1; text-align: center; padding: 4rem 1rem; color: var(--muted); font-size: 0.9rem; line-height: 2; }
         .empty .icon { font-size: 3rem; margin-bottom: 0.5rem; }
         .empty a { color: var(--accent); text-decoration: none; font-weight: 600; }
 
-        /* â”€â”€ Footer â”€â”€ */
+        /* ── Footer ── */
         .lib-footer { text-align: center; padding: 2.5rem 1rem 2rem; color: rgba(255,255,255,0.12); font-size: 0.7rem; }
         #versionTrigger { cursor: pointer; padding: 0.3rem 0.5rem; border-radius: 5px; transition: all 0.2s; display: inline-block; }
         #versionTrigger:hover { color: rgba(255,255,255,0.35); background: rgba(255,255,255,0.05); }
 
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+        /* ── Admin Modal ── */
+        .modal-overlay { position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.72); backdrop-filter:blur(4px); display:none; align-items:center; justify-content:center; }
+        .modal-overlay.open { display:flex; }
+        .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:2rem; min-width:300px; display:flex; flex-direction:column; gap:1rem; }
+        .modal-title { font-weight:700; font-size:1rem; }
+        .modal-input { padding:0.6rem 0.9rem; border-radius:8px; border:1px solid var(--border); background:var(--surf2); color:var(--text); font-family:inherit; font-size:0.95rem; outline:none; width:100%; }
+        .modal-error { color:#ef4444; font-size:0.78rem; display:none; }
+        .modal-row { display:flex; gap:0.5rem; }
+        .modal-btn-confirm { flex:1; padding:0.55rem; border-radius:8px; border:none; background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff; font-family:inherit; font-size:0.88rem; font-weight:700; cursor:pointer; }
+        .modal-btn-cancel { padding:0.55rem 0.9rem; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:inherit; cursor:pointer; }
+        .modal-logout-row { display:none; border-top:1px solid var(--border); padding-top:0.75rem; }
+        .modal-btn-logout { width:100%; padding:0.5rem; border-radius:8px; border:1px solid rgba(239,68,68,0.4); background:transparent; color:rgba(239,68,68,0.85); font-family:inherit; cursor:pointer; font-size:0.82rem; }
     </style>
 </head>
 <body>
 
-    <!-- â•â•â• ADMIN MODAL â•â•â• -->
-    <div id="adminModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;min-width:300px;display:flex;flex-direction:column;gap:1rem;">
-            <div style="font-weight:700;font-size:1rem;">ðŸ”’ Acceso Admin</div>
-            <input id="adminPinInput" type="password" placeholder="PIN" autocomplete="current-password"
-                style="padding:0.6rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:var(--surf2);color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;" />
-            <div id="adminPinError" style="color:#ef4444;font-size:0.78rem;display:none;"></div>
-            <div style="display:flex;gap:0.5rem;">
-                <button onclick="_submitAdminPin()" style="flex:1;padding:0.55rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-family:inherit;font-size:0.88rem;font-weight:700;cursor:pointer;">Entrar</button>
-                <button onclick="_closeAdminModal()" style="padding:0.55rem 0.9rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:inherit;cursor:pointer;">Cancelar</button>
+    <!-- ═══ ADMIN MODAL ═══ -->
+    <div id="adminModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title">🔒 Acceso Admin</div>
+            <input id="adminPinInput" class="modal-input" type="password" placeholder="PIN" autocomplete="current-password" />
+            <div id="adminPinError" class="modal-error"></div>
+            <div class="modal-row">
+                <button onclick="_submitAdminPin()" class="modal-btn-confirm">Entrar</button>
+                <button onclick="_closeAdminModal()" class="modal-btn-cancel">Cancelar</button>
             </div>
-            <div id="adminLogoutRow" style="display:none;border-top:1px solid var(--border);padding-top:0.75rem;">
-                <button onclick="_adminLogout()" style="width:100%;padding:0.5rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-family:inherit;cursor:pointer;font-size:0.82rem;">âœ• Cerrar sesiÃ³n admin</button>
+            <div id="adminLogoutRow" class="modal-logout-row">
+                <button onclick="_adminLogout()" class="modal-btn-logout">✕ Cerrar sesión admin</button>
             </div>
         </div>
     </div>
 
-    <!-- â•â•â• HEADER â•â•â• -->
+    <!-- ═══ HEADER ═══ -->
     <header class="lib-header">
         <div class="lib-logo">B-<span>Downloader</span></div>
         <span class="lib-sub">Biblioteca</span>
         <div class="h-spacer"></div>
-        <a href="/manage" id="manageLink" class="h-btn purple admin-only" style="display:none">â¬‡ Gestionar descargas</a>
-        <button id="adminTriggerBtn" onclick="_openAdminModal()" class="h-btn">ðŸ”’ Admin</button>
+        <a href="/manage" id="manageLink" class="h-btn purple admin-only" style="display:none">⬇ Gestionar descargas</a>
+        <button id="adminTriggerBtn" onclick="_openAdminModal()" class="h-btn">🔒 Admin</button>
     </header>
 
-    <!-- â•â•â• MAIN â•â•â• -->
+    <!-- ═══ MAIN ═══ -->
     <main class="lib-body">
         <div class="sec-header">
             <span class="sec-title">Partidos descargados</span>
-            <span class="sec-badge" id="matchBadge">â€“</span>
+            <span class="sec-badge" id="matchBadge">–</span>
         </div>
         <div class="m-grid" id="matchGrid">
-            <div class="empty"><div class="icon">â³</div>Cargando partidos...</div>
+            <div class="empty"><div class="icon">⏳</div>Cargando partidos...</div>
         </div>
 
         <div id="orphanSection" style="display:none">
             <div class="sec-header">
                 <span class="sec-title">Clips sin partido</span>
-                <span class="sec-badge" id="orphanBadge">â€“</span>
+                <span class="sec-badge" id="orphanBadge">–</span>
             </div>
             <div class="m-grid" id="orphanGrid"></div>
         </div>
     </main>
 
-    <!-- â•â•â• FOOTER â€“ acceso admin oculto â•â•â• -->
+    <!-- ═══ FOOTER – acceso admin oculto ═══ -->
     <footer class="lib-footer">
         <span id="versionTrigger" title="Acceso de administrador">v{{ version }}</span>
     </footer>
@@ -173,11 +185,11 @@
         let _isAdmin = __sd.isAdmin;
         const _forceAdminModal = __sd.forceAdminModal;
 
-        // â”€â”€ Admin UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Admin UI ──────────────────────────────────────────────────
         function _applyAdminUI() {
             document.querySelectorAll('.admin-only').forEach(el => { el.style.display = _isAdmin ? '' : 'none'; });
             const btn = document.getElementById('adminTriggerBtn');
-            if (btn) btn.textContent = _isAdmin ? 'ðŸ”“ Admin' : 'ðŸ”’ Admin';
+            if (btn) btn.textContent = _isAdmin ? '🔓 Admin' : '🔒 Admin';
         }
         _applyAdminUI();
 
@@ -185,7 +197,7 @@
         document.getElementById('versionTrigger').addEventListener('click', _openAdminModal);
         document.addEventListener('keydown', e => { if (e.shiftKey && e.key === 'A') _openAdminModal(); });
 
-        // â”€â”€ Admin modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Admin modal ───────────────────────────────────────────────
         const adminModal     = document.getElementById('adminModal');
         const adminPinInput  = document.getElementById('adminPinInput');
         const adminPinError  = document.getElementById('adminPinError');
@@ -194,11 +206,11 @@
         function _openAdminModal() {
             adminPinError.style.display = 'none';
             adminPinInput.value = '';
-            adminLogoutRow.style.display = _isAdmin ? '' : 'none';
-            adminModal.style.display = 'flex';
+            adminLogoutRow.style.display = _isAdmin ? 'block' : 'none';
+            adminModal.classList.add('open');
             setTimeout(() => adminPinInput.focus(), 50);
         }
-        function _closeAdminModal() { adminModal.style.display = 'none'; }
+        function _closeAdminModal() { adminModal.classList.remove('open'); }
         adminModal.addEventListener('click', e => { if (e.target === adminModal) _closeAdminModal(); });
         adminPinInput.addEventListener('keydown', e => { if (e.key === 'Enter') _submitAdminPin(); });
 
@@ -222,7 +234,7 @@
                     adminPinError.style.display = '';
                     adminPinInput.value = ''; adminPinInput.focus();
                 }
-            } catch { adminPinError.textContent = 'Error de conexiÃ³n'; adminPinError.style.display = ''; }
+            } catch { adminPinError.textContent = 'Error de conexión'; adminPinError.style.display = ''; }
         }
 
         async function _adminLogout() {
@@ -233,7 +245,7 @@
             loadLibrary();
         }
 
-        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Helpers ───────────────────────────────────────────────────
         const fmt = s => {
             s = Math.floor(s || 0);
             const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
@@ -241,9 +253,9 @@
                      : `${m}:${String(ss).padStart(2,'0')}`;
         };
 
-        // â”€â”€ Library loading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Library loading ───────────────────────────────────────────
         async function loadLibrary() {
-            document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">â³</div>Cargando...</div>';
+            document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">⏳</div>Cargando...</div>';
             try {
                 const [vRes, cRes] = await Promise.all([fetch('/api/videos'), fetch('/api/clips')]);
                 const { matches = [] } = await vRes.json();
@@ -261,16 +273,16 @@
                 renderMatches(matches, clipsByMatch);
                 renderOrphans(orphanClips);
             } catch {
-                document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">âš ï¸</div>Error cargando la biblioteca</div>';
+                document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">⚠️</div>Error cargando la biblioteca</div>';
             }
         }
 
         function renderMatches(matches, clipsByMatch) {
             const grid = document.getElementById('matchGrid');
             if (!matches.length) {
-                grid.innerHTML = `<div class="empty"><div class="icon">ðŸ“‚</div>
-                    No hay partidos descargados aÃºn.<br>
-                    ${_isAdmin ? '<a href="/manage">â¬‡ Descargar partidos â†’</a>' : 'Contacta al administrador para agregar contenido.'}
+                grid.innerHTML = `<div class="empty"><div class="icon">📂</div>
+                    No hay partidos descargados aún.<br>
+                    ${_isAdmin ? '<a href="/manage">⬇ Descargar partidos →</a>' : 'Contacta al administrador para agregar contenido.'}
                 </div>`;
                 return;
             }
@@ -283,9 +295,9 @@
             const sz = totalMB > 1024 ? `${(totalMB/1024).toFixed(2)} GB` : `${totalMB.toFixed(0)} MB`;
             const title = match.title || `Partido #${match.id}`;
             const meta = [
-                match.date    ? `ðŸ“… ${match.date}` : null,
-                match.complejo ? `ðŸŸï¸ ${match.complejo}${match.cancha ? ` â€“ Cancha ${match.cancha}` : ''}` : null,
-                `ðŸ†” ${match.id} Â· ðŸ’¾ ${sz}`
+                match.date    ? `📅 ${match.date}` : null,
+                match.complejo ? `🏟️ ${match.complejo}${match.cancha ? ` – Cancha ${match.cancha}` : ''}` : null,
+                `🆔 ${match.id} · 💾 ${sz}`
             ].filter(Boolean);
 
             const camPills = match.cameras.map(c => `<span class="cam-pill">${c.label}</span>`).join('');
@@ -293,19 +305,19 @@
             card.className = 'm-card';
             card.innerHTML = `
                 <div class="card-thumb">
-                    ${match.cameras.length > 1 ? 'ðŸŽ¥' : 'ðŸ“¹'}
-                    <span class="badge badge-cam">${match.cameras.length} cÃ¡m${match.cameras.length > 1 ? 's' : ''}</span>
-                    ${clips.length ? `<span class="badge badge-clips">âœ‚ ${clips.length}</span>` : ''}
+                    ${match.cameras.length > 1 ? '🎥' : '📹'}
+                    <span class="badge badge-cam">${match.cameras.length} cám${match.cameras.length > 1 ? 's' : ''}</span>
+                    ${clips.length ? `<span class="badge badge-clips">✂ ${clips.length}</span>` : ''}
                 </div>
                 <div class="card-body">
                     <div class="card-title">${title}</div>
                     <div class="card-meta">${meta.map(l => `<span>${l}</span>`).join('')}</div>
                     <div class="cam-pills">${camPills}</div>
                     <div class="card-actions">
-                        <a href="/player?id=${match.id}" class="btn btn-play">â–¶ Reproducir</a>
+                        <a href="/player?id=${match.id}" class="btn btn-play">▶ Reproducir</a>
                         ${_isAdmin ? `
-                            <a href="/api/file_zip/${match.id}" class="btn btn-ghost" download title="Descargar ZIP">â¬‡ ZIP</a>
-                            <button class="btn btn-danger" title="Eliminar partido" onclick="_deleteMatch('${match.id}',this)">ðŸ—‘</button>
+                            <a href="/api/file_zip/${match.id}" class="btn btn-ghost" download title="Descargar ZIP">⬇ ZIP</a>
+                            <button class="btn btn-danger" title="Eliminar partido" onclick="_deleteMatch('${match.id}',this)">🗑</button>
                         ` : ''}
                     </div>
                     ${clips.length ? buildClipsSection(clips) : ''}
@@ -319,21 +331,21 @@
             const rows = clips.map(c => {
                 const dur = (c.start != null && c.end != null) ? c.end - c.start : null;
                 return `<div class="clip-row">
-                    <span class="clip-time">${fmt(c.start)} â†’ ${fmt(c.end)}</span>
+                    <span class="clip-time">${fmt(c.start)} → ${fmt(c.end)}</span>
                     ${c.cam_id ? `<span class="clip-tag">${CAM_LABEL[c.cam_id] || c.cam_id}</span>` : ''}
-                    ${dur ? `<span class="clip-tag">â± ${fmt(dur)}</span>` : ''}
+                    ${dur ? `<span class="clip-tag">⏱ ${fmt(dur)}</span>` : ''}
                     <span class="clip-tag">${c.size_mb} MB</span>
-                    <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-ghost btn-sm">â–¶</a>
+                    <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-ghost btn-sm">▶</a>
                     ${_isAdmin ? `
-                        <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost btn-sm">â¬‡</a>
-                        <button class="btn btn-danger btn-sm" onclick="_deleteClip('${c.filename}',this)">ðŸ—‘</button>
+                        <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost btn-sm">⬇</a>
+                        <button class="btn btn-danger btn-sm" onclick="_deleteClip('${c.filename}',this)">🗑</button>
                     ` : ''}
                 </div>`;
             }).join('');
             return `<div class="clips-section">
                 <div class="clips-toggle" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
-                    âœ‚ ${clips.length} clip${clips.length > 1 ? 's' : ''}
-                    <span class="clips-arrow">â–¼</span>
+                    ✂ ${clips.length} clip${clips.length > 1 ? 's' : ''}
+                    <span class="clips-arrow">▼</span>
                 </div>
                 <div class="clips-list">${rows}</div>
             </div>`;
@@ -351,19 +363,19 @@
                 const card = document.createElement('div');
                 card.className = 'm-card';
                 card.innerHTML = `
-                    <div class="card-thumb" style="height:80px;font-size:2.2rem;">âœ‚</div>
+                    <div class="card-thumb" style="height:80px;font-size:2.2rem;">✂</div>
                     <div class="card-body">
-                        <div class="card-title">${fmt(c.start)} â†’ ${fmt(c.end)}</div>
+                        <div class="card-title">${fmt(c.start)} → ${fmt(c.end)}</div>
                         <div class="card-meta">
-                            ${c.cam_id ? `<span>ðŸŽ¥ ${CAM_LABEL[c.cam_id] || c.cam_id}</span>` : ''}
-                            ${dur ? `<span>â± ${fmt(dur)}</span>` : ''}
-                            <span>ðŸ’¾ ${c.size_mb} MB</span>
+                            ${c.cam_id ? `<span>🎥 ${CAM_LABEL[c.cam_id] || c.cam_id}</span>` : ''}
+                            ${dur ? `<span>⏱ ${fmt(dur)}</span>` : ''}
+                            <span>💾 ${c.size_mb} MB</span>
                         </div>
                         <div class="card-actions">
-                            <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-play">â–¶ Reproducir</a>
+                            <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-play">▶ Reproducir</a>
                             ${_isAdmin ? `
-                                <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost">â¬‡</a>
-                                <button class="btn btn-danger" onclick="_deleteClip('${c.filename}',this)">ðŸ—‘</button>
+                                <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost">⬇</a>
+                                <button class="btn btn-danger" onclick="_deleteClip('${c.filename}',this)">🗑</button>
                             ` : ''}
                         </div>
                     </div>`;
@@ -371,28 +383,28 @@
             });
         }
 
-        // â”€â”€ Acciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Acciones ──────────────────────────────────────────────────
         async function _deleteMatch(id, btn) {
-            if (!confirm(`Â¿Eliminar todos los archivos del partido ${id}?`)) return;
+            if (!confirm(`¿Eliminar todos los archivos del partido ${id}?`)) return;
             btn.disabled = true;
             try {
                 const res = await fetch(`/api/match/${id}`, { method: 'DELETE' });
                 if (res.ok) { loadLibrary(); }
                 else { const d = await res.json().catch(() => ({})); alert(d.error || 'Error al eliminar'); btn.disabled = false; }
-            } catch { alert('Error de conexiÃ³n'); btn.disabled = false; }
+            } catch { alert('Error de conexión'); btn.disabled = false; }
         }
 
         async function _deleteClip(filename, btn) {
-            if (!confirm(`Â¿Eliminar clip "${filename}"?`)) return;
+            if (!confirm(`¿Eliminar clip "${filename}"?`)) return;
             btn.disabled = true;
             try {
                 const res = await fetch(`/api/clips/delete/${encodeURIComponent(filename)}`, { method: 'DELETE' });
                 if (res.ok) { loadLibrary(); }
                 else { const d = await res.json().catch(() => ({})); alert(d.error || 'Error al eliminar'); btn.disabled = false; }
-            } catch { alert('Error de conexiÃ³n'); btn.disabled = false; }
+            } catch { alert('Error de conexión'); btn.disabled = false; }
         }
 
-        // â”€â”€ Bootstrap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Bootstrap ─────────────────────────────────────────────────
         loadLibrary();
         if (_forceAdminModal) _openAdminModal();
     </script>
