@@ -4,12 +4,16 @@ import re
 import hmac
 import hashlib
 import json
+import math
 import subprocess
 import sys
+import time
+import uuid
+from threading import Lock
 import downloader_core
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "change-me-in-production")
+app.secret_key = os.environ.get("SECRET_KEY") or hashlib.sha256(f"bdl|{os.environ.get('ADMIN_PIN', '')}|{os.path.realpath(__file__)}".encode()).hexdigest()
 
 @app.after_request
 def no_cache(response):
@@ -22,6 +26,17 @@ def no_cache(response):
 # ── Admin auth ────────────────────────────────────────────────────────────────
 ADMIN_PIN  = os.environ.get("ADMIN_PIN", "")
 _AUTH_COOKIE = "bdl_admin"
+_TRUST_PROXY_HEADERS = os.environ.get("TRUST_PROXY_HEADERS", "").strip().lower() in {"1", "true", "yes", "on"}
+_RATE_LIMIT_BUCKETS = {}
+_RATE_LIMIT_LOCK = Lock()
+_RATE_LIMIT_MAX_BUCKETS = 2048
+_JSON_LOCK = Lock()
+_CATALOG_CACHE_LOCK = Lock()
+_CATALOG_CACHE_TTL_SECONDS = 2.0
+_CATALOG_CACHE = {
+    "videos": {"signature": None, "payload": None, "expires_at": 0.0},
+    "clips": {"signature": None, "payload": None, "expires_at": 0.0},
+}
 
 def _make_token(pin: str) -> str:
     """HMAC-signed token so the cookie can't be forged."""
@@ -34,11 +49,91 @@ def _is_admin() -> bool:
     token = request.cookies.get(_AUTH_COOKIE, "")
     return hmac.compare_digest(token, _make_token(ADMIN_PIN))
 
+def _client_ip() -> str:
+    remote_ip = request.remote_addr or "unknown"
+    if not _TRUST_PROXY_HEADERS:
+        return remote_ip
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip() or remote_ip
+    return remote_ip
+
+def _is_secure_request() -> bool:
+    if request.is_secure:
+        return True
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
+    return forwarded_proto.split(",")[0].strip().lower() == "https"
+
+def _prune_rate_limit_hits(hits: list[float], now: float, window_seconds: int) -> list[float]:
+    return [ts for ts in hits if now - ts < window_seconds]
+
+def _cleanup_rate_limit_buckets_locked(now: float) -> None:
+    stale_keys = []
+    for key, entry in list(_RATE_LIMIT_BUCKETS.items()):
+        window_seconds = max(int(entry.get("window_seconds", 0)), 1)
+        hits = _prune_rate_limit_hits(entry.get("hits", []), now, window_seconds)
+        if hits:
+            entry["hits"] = hits
+            _RATE_LIMIT_BUCKETS[key] = entry
+        else:
+            stale_keys.append(key)
+    for key in stale_keys:
+        _RATE_LIMIT_BUCKETS.pop(key, None)
+    if len(_RATE_LIMIT_BUCKETS) > _RATE_LIMIT_MAX_BUCKETS:
+        overflow = len(_RATE_LIMIT_BUCKETS) - _RATE_LIMIT_MAX_BUCKETS
+        oldest_keys = sorted(
+            _RATE_LIMIT_BUCKETS,
+            key=lambda bucket_key: _RATE_LIMIT_BUCKETS[bucket_key]["hits"][-1] if _RATE_LIMIT_BUCKETS[bucket_key]["hits"] else float("-inf"),
+        )[:overflow]
+        for key in oldest_keys:
+            _RATE_LIMIT_BUCKETS.pop(key, None)
+
+def _is_rate_limited(scope: str, max_hits: int, window_seconds: int) -> bool:
+    now = time.time()
+    key = (scope, _client_ip())
+    with _RATE_LIMIT_LOCK:
+        _cleanup_rate_limit_buckets_locked(now)
+        entry = _RATE_LIMIT_BUCKETS.get(key)
+        if not entry:
+            return False
+        hits = _prune_rate_limit_hits(entry.get("hits", []), now, window_seconds)
+        if hits:
+            entry["hits"] = hits
+            entry["window_seconds"] = window_seconds
+            _RATE_LIMIT_BUCKETS[key] = entry
+        else:
+            _RATE_LIMIT_BUCKETS.pop(key, None)
+        return len(hits) >= max_hits
+
+def _record_rate_limit_hit(scope: str, window_seconds: int) -> None:
+    now = time.time()
+    key = (scope, _client_ip())
+    with _RATE_LIMIT_LOCK:
+        _cleanup_rate_limit_buckets_locked(now)
+        entry = _RATE_LIMIT_BUCKETS.get(key, {"hits": [], "window_seconds": window_seconds})
+        hits = _prune_rate_limit_hits(entry.get("hits", []), now, window_seconds)
+        hits.append(now)
+        entry["hits"] = hits
+        entry["window_seconds"] = window_seconds
+        _RATE_LIMIT_BUCKETS[key] = entry
+
+def _reset_rate_limit(scope: str) -> None:
+    key = (scope, _client_ip())
+    with _RATE_LIMIT_LOCK:
+        _RATE_LIMIT_BUCKETS.pop(key, None)
+
+def _consume_rate_limit(scope: str, max_hits: int, window_seconds: int) -> bool:
+    if _is_rate_limited(scope, max_hits, window_seconds):
+        return False
+    _record_rate_limit_hit(scope, window_seconds)
+    return True
+
 # ── Security helpers ──────────────────────────────────────────────────────────
 
 # Only alphanumeric characters are valid for IDs and camera names.
 _ID_RE  = re.compile(r"^\w{1,64}$")
 _CAM_RE = re.compile(r"^(central|izq|der)$")
+_VIDEO_FILE_RE = re.compile(r"^(?:(\d{4}-\d{2}-\d{2})_)?video_(\w+?)(?:_(central|izq|der))?\.(mp4|ts)$")
 
 def _safe_id(value: str) -> str | None:
     """Return the value if it looks like a valid Beelup ID, else None."""
@@ -64,6 +159,76 @@ def _safe_download_path(filename: str) -> str | None:
         return None
     return target
 
+def _safe_clip_path(filename: str) -> str | None:
+    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
+    base = os.path.realpath(clips_dir)
+    target = os.path.realpath(os.path.join(clips_dir, filename))
+    if not target.startswith(base + os.sep):
+        return None
+    return target
+
+def _parse_video_filename(filename: str) -> tuple[str, str] | None:
+    match = _VIDEO_FILE_RE.match(os.path.basename(filename))
+    if not match:
+        return None
+    match_id = match.group(2)
+    cam_id = match.group(3) or ""
+    return match_id, cam_id
+
+def _write_json_atomic(filepath: str, data) -> None:
+    tmp_path = f"{filepath}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, filepath)
+
+def _load_json_dict(filepath: str) -> dict:
+    if not os.path.exists(filepath):
+        return {}
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        return loaded if isinstance(loaded, dict) else {}
+    except Exception:
+        return {}
+
+def _path_mtime(filepath: str) -> float | None:
+    try:
+        return os.path.getmtime(filepath)
+    except OSError:
+        return None
+
+def _get_cached_catalog_payload(name: str, signature) -> dict | None:
+    now = time.time()
+    with _CATALOG_CACHE_LOCK:
+        entry = _CATALOG_CACHE.get(name)
+        if not entry:
+            return None
+        if entry["signature"] == signature and entry["expires_at"] > now:
+            return entry["payload"]
+    return None
+
+def _set_cached_catalog_payload(name: str, signature, payload: dict) -> None:
+    with _CATALOG_CACHE_LOCK:
+        _CATALOG_CACHE[name] = {
+            "signature": signature,
+            "payload": payload,
+            "expires_at": time.time() + _CATALOG_CACHE_TTL_SECONDS,
+        }
+
+def _update_json_dict(filepath: str, mutate) -> None:
+    with _JSON_LOCK:
+        data = {}
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    data = loaded
+            except Exception:
+                data = {}
+        mutate(data)
+        _write_json_atomic(filepath, data)
+
 def _extract_beelup_id(raw: str) -> str | None:
     """Extract and validate a Beelup match ID from either a bare ID or a URL."""
     raw = raw.strip()
@@ -72,7 +237,7 @@ def _extract_beelup_id(raw: str) -> str | None:
         return m.group(1) if m else None
     return _safe_id(raw)
 
-VERSION = "2.0"
+VERSION = "2.1.0"
 
 _COVERS = {
     "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
@@ -108,20 +273,24 @@ def admin_page():
 
 @app.route("/api/admin/login", methods=["POST"])
 def admin_login():
-    data = request.json or {}
+    if _is_rate_limited("admin_login", 5, 300):
+        return jsonify({"error": "Demasiados intentos. Intenta nuevamente en unos minutos."}), 429
+    data = request.get_json(silent=True) or {}
     pin  = data.get("pin", "").strip()
     if not ADMIN_PIN:
         return jsonify({"error": "Admin no configurado en el servidor"}), 503
     if not pin or not hmac.compare_digest(pin, ADMIN_PIN):
+        _record_rate_limit_hit("admin_login", 300)
         return jsonify({"error": "PIN incorrecto"}), 401
+    _reset_rate_limit("admin_login")
     resp = make_response(jsonify({"ok": True}))
-    resp.set_cookie(_AUTH_COOKIE, _make_token(pin), httponly=True, samesite="Strict", max_age=86400 * 7)
+    resp.set_cookie(_AUTH_COOKIE, _make_token(pin), httponly=True, samesite="Strict", secure=_is_secure_request(), max_age=86400 * 7)
     return resp
 
 @app.route("/api/admin/logout", methods=["POST"])
 def admin_logout():
     resp = make_response(jsonify({"ok": True}))
-    resp.delete_cookie(_AUTH_COOKIE)
+    resp.delete_cookie(_AUTH_COOKIE, httponly=True, samesite="Strict", secure=_is_secure_request())
     return resp
 
 @app.route("/api/admin/status")
@@ -132,18 +301,25 @@ def admin_status():
 def list_videos():
     """List downloaded videos grouped by match ID with camera info."""
     dl_dir = downloader_core.DOWNLOAD_DIR
+    meta_file = os.path.join(dl_dir, "metadata.json")
+    signature = (
+        _path_mtime(dl_dir),
+        _path_mtime(meta_file),
+    )
+    cached_payload = _get_cached_catalog_payload("videos", signature)
+    if cached_payload is not None:
+        return jsonify(cached_payload)
+
     matches = {}
 
-    meta_data = {}
-    meta_file = os.path.join(dl_dir, "metadata.json")
-    if os.path.exists(meta_file):
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta_data = json.load(f)
-        except Exception:
-            pass
+    meta_data = _load_json_dict(meta_file)
 
-    for fname in sorted(os.listdir(dl_dir)):
+    try:
+        filenames = sorted(os.listdir(dl_dir))
+    except OSError:
+        filenames = []
+
+    for fname in filenames:
         if not (fname.endswith(".mp4") or fname.endswith(".ts")):
             continue
         m = re.search(r"^(?:(\d{4}-\d{2}-\d{2})_)?video_(\w+?)(?:_(central|izq|der))?\.(mp4|ts)$", fname)
@@ -153,7 +329,10 @@ def list_videos():
         match_id   = m.group(2)
         cam_id     = m.group(3) or ""
 
-        size_mb = round(os.path.getsize(os.path.join(dl_dir, fname)) / (1024 * 1024), 1)
+        try:
+            size_mb = round(os.path.getsize(os.path.join(dl_dir, fname)) / (1024 * 1024), 1)
+        except OSError:
+            continue
 
         if match_id not in matches:
             raw_meta    = meta_data.get(match_id, "")
@@ -205,7 +384,9 @@ def list_videos():
         if named:
             m["cameras"] = named
 
-    return jsonify({"matches": list(matches.values())})
+    payload = {"matches": list(matches.values())}
+    _set_cached_catalog_payload("videos", signature, payload)
+    return jsonify(payload)
 
 @app.route("/api/stream/<path:filename>")
 def stream_video(filename):
@@ -280,19 +461,22 @@ def get_progress_all(beelup_id):
     status = downloader_core.get_progress(beelup_id, "all")
     return jsonify(status)
 
-@app.route("/api/clip/<path:filename>")
+@app.route("/api/clip/<path:filename>", methods=["POST"])
 def download_clip(filename):
     """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
+    if not _consume_rate_limit("clip", 6, 60):
+        return jsonify({"error": "Demasiados clips solicitados. Espera un minuto e intenta otra vez."}), 429
+    data = request.get_json(silent=True) or {}
     try:
-        start     = float(request.args.get("start", 0))
-        end       = float(request.args.get("end", 0))
-        match_id  = request.args.get("match_id", "").strip()
-        cam_id    = request.args.get("cam_id", "").strip()
+        start = float(data.get("start", 0))
+        end   = float(data.get("end", 0))
     except (TypeError, ValueError):
         return jsonify({"error": "Tiempos inválidos"}), 400
 
+    if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end < 0:
+        return jsonify({"error": "Tiempos inválidos"}), 400
     if end <= start:
         return jsonify({"error": "El tiempo de fin debe ser mayor al de inicio"}), 400
     if (end - start) > 3600:
@@ -307,9 +491,15 @@ def download_clip(filename):
     if not os.path.exists(filepath):
         return "File not found", 404
 
+    source_meta = _parse_video_filename(filename)
+    if source_meta is None:
+        return jsonify({"error": "Archivo de video inválido"}), 400
+    match_id, cam_id = source_meta
+
     duration = end - start
     base     = os.path.splitext(os.path.basename(filename))[0]
-    out_name = f"clip_{base}_{int(start)}s-{int(end)}s.mp4"
+    clip_id  = uuid.uuid4().hex[:8]
+    out_name = f"clip_{base}_{int(start * 1000)}ms-{int(end * 1000)}ms_{clip_id}.mp4"
 
     clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
     os.makedirs(clips_dir, exist_ok=True)
@@ -319,9 +509,11 @@ def download_clip(filename):
            "-ss", str(start),
            "-i", filepath,
            "-t", str(duration),
-           "-c", "copy",
-           "-movflags", "frag_keyframe+empty_moov+faststart",
-           "-f", "mp4",
+           "-c:v", "libx264",
+           "-preset", "veryfast",
+           "-crf", "23",
+           "-c:a", "aac",
+           "-movflags", "+faststart",
            out_path]
     if sys.platform != "win32":
         cmd = ["nice", "-n", "10"] + cmd
@@ -338,23 +530,25 @@ def download_clip(filename):
     if match_id:
         clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
         try:
-            clips_meta = {}
-            if os.path.exists(clips_meta_file):
-                with open(clips_meta_file, "r", encoding="utf-8") as f:
-                    clips_meta = json.load(f)
-            clips_meta[out_name] = {
-                "match_id": match_id,
-                "cam_id":   cam_id,
-                "start":    start,
-                "end":      end,
-                "filename": out_name,
-            }
-            with open(clips_meta_file, "w", encoding="utf-8") as f:
-                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+            def mutate(clips_meta):
+                clips_meta[out_name] = {
+                    "match_id": match_id,
+                    "cam_id":   cam_id,
+                    "start":    start,
+                    "end":      end,
+                    "filename": out_name,
+                }
+
+            _update_json_dict(clips_meta_file, mutate)
         except Exception:
             pass
 
-    return send_file(out_path, mimetype="video/mp4", as_attachment=True, download_name=out_name)
+    return jsonify({
+        "ok": True,
+        "filename": out_name,
+        "download_url": f"/api/clips/download/{out_name}",
+        "size_mb": round(os.path.getsize(out_path) / (1024 * 1024), 1),
+    })
 
 @app.route("/api/clips")
 def list_clips():
@@ -362,31 +556,32 @@ def list_clips():
     clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
     clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
     meta_file = os.path.join(downloader_core.DOWNLOAD_DIR, "metadata.json")
+    signature = (
+        _path_mtime(clips_dir),
+        _path_mtime(clips_meta_file),
+        _path_mtime(meta_file),
+    )
+    cached_payload = _get_cached_catalog_payload("clips", signature)
+    if cached_payload is not None:
+        return jsonify(cached_payload)
 
-    clips_meta = {}
-    match_meta = {}
-
-    if os.path.exists(clips_meta_file):
-        try:
-            with open(clips_meta_file, "r", encoding="utf-8") as f:
-                clips_meta = json.load(f)
-        except Exception:
-            pass
-
-    if os.path.exists(meta_file):
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                match_meta = json.load(f)
-        except Exception:
-            pass
+    clips_meta = _load_json_dict(clips_meta_file)
+    match_meta = _load_json_dict(meta_file)
 
     groups = {}
     if os.path.isdir(clips_dir):
-        for fname in sorted(os.listdir(clips_dir)):
+        try:
+            clip_filenames = sorted(os.listdir(clips_dir))
+        except OSError:
+            clip_filenames = []
+        for fname in clip_filenames:
             if not fname.endswith(".mp4"):
                 continue
             fpath = os.path.join(clips_dir, fname)
-            size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 1)
+            try:
+                size_mb = round(os.path.getsize(fpath) / (1024 * 1024), 1)
+            except OSError:
+                continue
             meta    = clips_meta.get(fname, {})
             mid     = meta.get("match_id", "unknown")
 
@@ -407,19 +602,29 @@ def list_clips():
                 "size_mb":  size_mb,
             })
 
-    return jsonify({"groups": list(groups.values())})
+    payload = {"groups": list(groups.values())}
+    _set_cached_catalog_payload("clips", signature, payload)
+    return jsonify(payload)
 
 @app.route("/api/clips/stream/<path:filename>")
 def stream_clip(filename):
     """Stream a saved clip for inline playback."""
-    clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
-    filepath  = os.path.realpath(os.path.join(clips_dir, filename))
-    base      = os.path.realpath(clips_dir)
-    if not filepath.startswith(base + os.sep) or not filename.endswith(".mp4"):
+    filepath = _safe_clip_path(filename)
+    if filepath is None or not filename.endswith(".mp4"):
         return "Acceso denegado", 403
     if not os.path.exists(filepath):
         return "File not found", 404
     return send_file(filepath, mimetype="video/mp4", conditional=True)
+
+@app.route("/api/clips/download/<path:filename>")
+def download_saved_clip(filename):
+    """Download a saved clip as an attachment."""
+    filepath = _safe_clip_path(filename)
+    if filepath is None or not filename.endswith(".mp4"):
+        return "Acceso denegado", 403
+    if not os.path.exists(filepath):
+        return "File not found", 404
+    return send_file(filepath, mimetype="video/mp4", as_attachment=True, download_name=os.path.basename(filepath))
 
 @app.route("/api/clips/delete/<path:filename>", methods=["DELETE"])
 def delete_clip(filename):
@@ -427,20 +632,18 @@ def delete_clip(filename):
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
     clips_dir = os.path.join(downloader_core.DOWNLOAD_DIR, "clips")
-    filepath  = os.path.realpath(os.path.join(clips_dir, filename))
-    base      = os.path.realpath(clips_dir)
-    if not filepath.startswith(base + os.sep) or not filename.endswith(".mp4"):
+    filepath = _safe_clip_path(filename)
+    if filepath is None or not filename.endswith(".mp4"):
         return "Acceso denegado", 403
     try:
         if os.path.exists(filepath):
             os.remove(filepath)
         clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
         if os.path.exists(clips_meta_file):
-            with open(clips_meta_file, "r", encoding="utf-8") as f:
-                clips_meta = json.load(f)
-            clips_meta.pop(filename, None)
-            with open(clips_meta_file, "w", encoding="utf-8") as f:
-                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
+            def mutate(clips_meta):
+                clips_meta.pop(filename, None)
+
+            _update_json_dict(clips_meta_file, mutate)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     return jsonify({"ok": True})
@@ -469,26 +672,29 @@ def delete_match(beelup_id):
                 deleted.append(fname)
         meta_file = os.path.join(dl_dir, "metadata.json")
         if os.path.exists(meta_file):
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-            if beelup_id in meta:
-                del meta[beelup_id]
-                with open(meta_file, "w", encoding="utf-8") as f:
-                    json.dump(meta, f, ensure_ascii=False, indent=2)
+            def mutate(meta):
+                meta.pop(beelup_id, None)
+
+            _update_json_dict(meta_file, mutate)
         clips_dir = os.path.join(dl_dir, "clips")
         clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
         if os.path.exists(clips_meta_file):
-            with open(clips_meta_file, "r", encoding="utf-8") as f:
-                clips_meta = json.load(f)
-            to_remove = [k for k, v in clips_meta.items() if v.get("match_id") == beelup_id]
+            with _JSON_LOCK:
+                try:
+                    with open(clips_meta_file, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                except Exception:
+                    loaded = {}
+                clips_meta = loaded if isinstance(loaded, dict) else {}
+                to_remove = [k for k, v in clips_meta.items() if v.get("match_id") == beelup_id]
+                for clip_fname in to_remove:
+                    clips_meta.pop(clip_fname, None)
+                _write_json_atomic(clips_meta_file, clips_meta)
             for clip_fname in to_remove:
                 clip_path = os.path.join(clips_dir, clip_fname)
                 if os.path.exists(clip_path):
                     os.remove(clip_path)
                     deleted.append(f"clips/{clip_fname}")
-                clips_meta.pop(clip_fname, None)
-            with open(clips_meta_file, "w", encoding="utf-8") as f:
-                json.dump(clips_meta, f, ensure_ascii=False, indent=2)
         return jsonify({"ok": True, "deleted": deleted})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

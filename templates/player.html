@@ -322,6 +322,11 @@
         opacity: 1;
       }
 
+      .ctrl-btn.clip-btn-toggle.active {
+        color: var(--accent);
+        background: rgba(99, 102, 241, 0.12);
+      }
+
       .progress-row {
         display: flex;
         align-items: center;
@@ -869,7 +874,7 @@
             >
               ✕ zoom
             </button>
-            <button class="ctrl-btn admin-only" id="clipToggleBtn" title="Grabar clip">✂</button>
+            <button class="ctrl-btn clip-btn-toggle admin-only" id="clipToggleBtn" title="Grabar clip">✂</button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
@@ -1069,6 +1074,13 @@
           ? `${h}:${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`
           : `${m}:${String(ss).padStart(2, "0")}`;
       };
+      const escapeHtml = (value) =>
+        String(value ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
 
       // ── skip buttons ─────────────────────────────────────────────
       skipBackBtn.addEventListener("click", () => {
@@ -1097,6 +1109,10 @@
         });
         const btn = document.getElementById("adminBtn");
         if (btn) btn.textContent = _isAdmin ? "🔓 Admin" : "🔒 Admin";
+        if (!_isAdmin) {
+          clipPanel.classList.remove("visible");
+          clipToggleBtn.classList.remove("active");
+        }
       }
 
       // ── clip functionality ───────────────────────────────────────
@@ -1106,14 +1122,11 @@
       let _currentClipFilename = null;
       let _currentMatchId = null;
       let _currentCamId = null;
-      let _clipAbortController = null;
 
       clipToggleBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        clipPanel.classList.toggle("visible");
-        clipToggleBtn.style.color = clipPanel.classList.contains("visible")
-          ? "var(--accent)"
-          : "";
+        const visible = clipPanel.classList.toggle("visible");
+        clipToggleBtn.classList.toggle("active", visible);
       });
 
       clipInBtn.addEventListener("click", () => {
@@ -1135,24 +1148,29 @@
           clipInTime !== null &&
           clipOutTime !== null &&
           clipOutTime > clipInTime;
-        clipRecBtn.disabled = !ready;
-        clipRecBtn.title = ready
+        clipRecBtn.disabled = clipRecording || !ready;
+        clipRecBtn.title = clipRecording
+          ? "Generando clip…"
+          : ready
           ? `Generar clip de ${fmt(clipOutTime - clipInTime)}`
           : "Marca inicio y fin válidos";
       }
 
+      function _setClipControlsBusy(isBusy) {
+        clipInBtn.disabled = isBusy;
+        clipOutBtn.disabled = isBusy;
+        clipResetBtn.disabled = isBusy;
+      }
+
       clipResetBtn.addEventListener("click", () => {
+        if (clipRecording) return;
         clipInTime = clipOutTime = null;
         clipInBadge.textContent = "--:--";
         clipOutBadge.textContent = "--:--";
         clipInBadge.classList.remove("set");
         clipOutBadge.classList.remove("set");
-        clipRecBtn.disabled = true;
         clipProgress.textContent = "";
-        if (clipRecording && _clipAbortController) {
-          _clipAbortController.abort();
-          clipRecording = false;
-        }
+        _updateClipRecBtn();
       });
 
       clipRecBtn.addEventListener("click", async () => {
@@ -1161,62 +1179,49 @@
         if (!_currentClipFilename) return;
 
         clipProgress.textContent = "Generando clip MP4…";
-        clipRecBtn.disabled = true;
         clipRecording = true;
+        _setClipControlsBusy(true);
+        _updateClipRecBtn();
 
-        _clipAbortController = new AbortController();
-
-        const url = `/api/clip/${encodeURIComponent(_currentClipFilename)}` +
-          `?start=${clipInTime.toFixed(3)}&end=${clipOutTime.toFixed(3)}` +
-          `&match_id=${encodeURIComponent(_currentMatchId || "")}` +
-          `&cam_id=${encodeURIComponent(_currentCamId || "")}`;
+        const url = `/api/clip/${encodeURIComponent(_currentClipFilename)}`;
 
         try {
-          const res = await fetch(url, { signal: _clipAbortController.signal });
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              start: Number(clipInTime.toFixed(3)),
+              end: Number(clipOutTime.toFixed(3)),
+            }),
+          });
 
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: res.statusText }));
             throw new Error(err.error || res.statusText);
           }
 
-          const contentLength = res.headers.get("Content-Length");
-          const reader = res.body.getReader();
-          const chunks = [];
-          let received = 0;
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            if (contentLength) {
-              const pct = Math.round((received / parseInt(contentLength)) * 100);
-              clipProgress.textContent = `Descargando… ${pct}%`;
-            } else {
-              clipProgress.textContent = `Descargando… ${(received / 1024 / 1024).toFixed(1)} MB`;
-            }
+          const payload = await res.json().catch(() => ({}));
+          if (!payload.download_url) {
+            throw new Error("No se recibió la URL de descarga del clip");
           }
 
-          const blob = new Blob(chunks, { type: "video/mp4" });
-          const blobUrl = URL.createObjectURL(blob);
+          clipProgress.textContent = "Descarga iniciada…";
           const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
+          a.href = payload.download_url;
+          a.download = payload.filename || `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
           document.body.appendChild(a);
           a.click();
-          setTimeout(() => { URL.revokeObjectURL(blobUrl); a.remove(); }, 1000);
-          clipProgress.textContent = `✓ Clip descargado (${(blob.size / 1024 / 1024).toFixed(1)} MB)`;
+          setTimeout(() => { a.remove(); }, 1000);
+          clipProgress.textContent = payload.size_mb != null
+            ? `✓ Clip listo para descarga (${payload.size_mb} MB)`
+            : "✓ Clip listo para descarga";
 
         } catch (err) {
-          if (err.name === "AbortError") {
-            clipProgress.textContent = "Cancelado.";
-          } else {
-            clipProgress.textContent = `Error: ${err.message}`;
-          }
+          clipProgress.textContent = `Error: ${err.message}`;
         } finally {
           clipRecording = false;
-          clipRecBtn.disabled = false;
-          _clipAbortController = null;
+          _setClipControlsBusy(false);
+          _updateClipRecBtn();
         }
       });
 
@@ -1553,6 +1558,7 @@
         matchGrid.innerHTML = "";
         matches.forEach((match) => {
           const isMulti = match.cameras.length > 1;
+          const safeMatchId = encodeURIComponent(match.id);
           const totalMB = match.cameras.reduce((s, c) => s + c.size_mb, 0);
           const sz =
             totalMB > 1024
@@ -1565,25 +1571,21 @@
               const camParam = c.cam_id
                 ? `?camara=${encodeURIComponent(c.cam_id)}`
                 : "";
-              dlBtnsHtml += `<a href="/api/file/${match.id}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${c.label}</a>`;
+              dlBtnsHtml += `<a href="/api/file/${safeMatchId}${camParam}" class="card-dl-btn" download onclick="event.stopPropagation()">⬇ ${escapeHtml(c.label)}</a>`;
             });
           }
 
-          const dateStr = match.date
-            ? `📅 ${match.date} (ID: ${match.id})`
-            : `Partido #${match.id}`;
-
-          let matchText = `Partido #${match.id}`;
+          let matchText = `Partido #${escapeHtml(match.id)}`;
           if (match.title) {
             matchText = match.date
-              ? `📅 ${match.date}<br/>${match.title}`
-              : match.title;
+              ? `📅 ${escapeHtml(match.date)}<br/>${escapeHtml(match.title)}`
+              : escapeHtml(match.title);
           } else if (match.date) {
-            matchText = `📅 ${match.date} (ID: ${match.id})`;
+            matchText = `📅 ${escapeHtml(match.date)} (ID: ${escapeHtml(match.id)})`;
           }
 
           const thumbStyle = match.cover_url
-            ? `style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('${match.cover_url}') center/cover no-repeat;"`
+            ? `style="background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('${escapeHtml(match.cover_url)}') center/cover no-repeat;"`
             : "";
 
           const card = document.createElement("div");
@@ -1596,17 +1598,17 @@
             <div class="card-body">
                 <div class="card-id" style="min-height:2.6rem; margin-bottom:0.5rem; line-height:1.3">${matchText}</div>
                 <div class="card-meta">
-                    <span>${isMulti ? match.cameras.map((c) => c.label).join(" · ") : "Cámara única"}</span>
+                    <span>${isMulti ? match.cameras.map((c) => escapeHtml(c.label)).join(" · ") : "Cámara única"}</span>
                     <span>${sz} total</span>
                 </div>
                 <div style="display:flex;gap:0.4rem;margin-top:0.85rem;">
-                  <button class="card-play-btn" style="flex:1;" onclick="event.stopPropagation();window.open('/player?id=${match.id}','_blank')">▶ Partido</button>
-                  ${clipsByMatch[match.id] ? `<button class="card-play-btn" style="flex:0 0 auto;background:rgba(99,102,241,0.2);border:1.5px solid rgba(99,102,241,0.5);" onclick="event.stopPropagation();window.open('/player?id=${match.id}&view=clips','_blank')">✂ ${clipsByMatch[match.id]}</button>` : ""}
+                  <button class="card-play-btn" style="flex:1;" onclick="event.stopPropagation();window.open('/player?id=${safeMatchId}','_blank')">▶ Partido</button>
+                  ${clipsByMatch[match.id] ? `<button class="card-play-btn" style="flex:0 0 auto;background:rgba(99,102,241,0.2);border:1.5px solid rgba(99,102,241,0.5);" onclick="event.stopPropagation();window.open('/player?id=${safeMatchId}&view=clips','_blank')">✂ ${clipsByMatch[match.id]}</button>` : ""}
                 </div>
                 ${_isAdmin ? `<div class="dl-row">${dlBtnsHtml}</div>` : ""}
             </div>`;
           card.addEventListener("click", () =>
-            window.open(`/player?id=${match.id}`, "_blank"),
+            window.open(`/player?id=${safeMatchId}`, "_blank"),
           );
           matchGrid.appendChild(card);
         });
@@ -1729,18 +1731,19 @@
           const title = group.match_title || `Partido #${group.match_id}`;
           const section = document.createElement("div");
           section.style.cssText = "grid-column:1/-1;";
-          section.innerHTML = `<div style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border);">📂 ${title}</div>`;
+          section.innerHTML = `<div style="font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.75rem;padding-bottom:0.4rem;border-bottom:1px solid var(--border);">📂 ${escapeHtml(title)}</div>`;
           clipsGrid.appendChild(section);
 
           group.clips.forEach((clip) => {
             const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
             const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+            const safeFilename = encodeURIComponent(clip.filename);
             const card = document.createElement("div");
             card.className = "match-card";
             card.innerHTML = `
               <div class="card-thumb" style="height:90px;font-size:2rem;">
                 ✂
-                ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+                ${camLabel ? `<span class="cam-count-badge">${escapeHtml(camLabel)}</span>` : ""}
               </div>
               <div class="card-body">
                 <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
@@ -1749,17 +1752,17 @@
                   <span>${clip.size_mb} MB</span>
                 </div>
                 <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
-                  <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                  <a href="/api/clips/stream/${safeFilename}"
                      target="_blank"
                      style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
                     ▶ Reproducir
                   </a>
-                  ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
-                     download="${clip.filename}"
+                  ${_isAdmin ? `<a href="/api/clips/download/${safeFilename}"
+                     download="${escapeHtml(clip.filename)}"
                      style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
                     ⬇ Descargar
                   </a>` : ""}
-                  ${_isAdmin ? `<button onclick="_deleteClip('${clip.filename}', this)"
+                  ${_isAdmin ? `<button data-filename="${safeFilename}" onclick="_deleteClip(decodeURIComponent(this.dataset.filename), this)"
                      style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
                     ✕
                   </button>` : ""}
@@ -1828,7 +1831,7 @@
         playerView.style.display = "none";
         const mcv = document.getElementById("matchClipsView");
         mcv.style.display = "flex";
-        document.getElementById("mcvWatchBtn").href = `/player?id=${matchId}`;
+        document.getElementById("mcvWatchBtn").href = `/player?id=${encodeURIComponent(matchId)}`;
         try {
           const [vRes, cRes] = await Promise.all([fetch("/api/videos"), fetch("/api/clips")]);
           const { matches = [] } = await vRes.json();
@@ -1856,12 +1859,14 @@
         clips.forEach(clip => {
           const duration = (clip.start != null && clip.end != null) ? clip.end - clip.start : null;
           const camLabel = { central: "Central", izq: "Izq", der: "Der" }[clip.cam_id] || clip.cam_id || "";
+          const safeFilename = encodeURIComponent(clip.filename);
+          const safeMatchId = encodeURIComponent(matchId);
           const card = document.createElement("div");
           card.className = "match-card";
           card.innerHTML = `
             <div class="card-thumb" style="height:90px;font-size:2rem;">
               ✂
-              ${camLabel ? `<span class="cam-count-badge">${camLabel}</span>` : ""}
+              ${camLabel ? `<span class="cam-count-badge">${escapeHtml(camLabel)}</span>` : ""}
             </div>
             <div class="card-body">
               <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
@@ -1870,17 +1875,17 @@
                 <span>${clip.size_mb} MB</span>
               </div>
               <div style="display:flex;gap:0.4rem;margin-top:0.75rem;flex-wrap:wrap;">
-                <a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
+                <a href="/api/clips/stream/${safeFilename}"
                    target="_blank"
                    style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:0.8rem;font-weight:700;text-decoration:none;">
                   ▶ Reproducir
                 </a>
-                ${_isAdmin ? `<a href="/api/clips/stream/${encodeURIComponent(clip.filename)}"
-                   download="${clip.filename}"
+                ${_isAdmin ? `<a href="/api/clips/download/${safeFilename}"
+                   download="${escapeHtml(clip.filename)}"
                    style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
                   ⬇ Descargar
                 </a>` : ""}
-                ${_isAdmin ? `<button onclick="_deleteClipMcv('${clip.filename}','${matchId}',this)"
+                ${_isAdmin ? `<button data-filename="${safeFilename}" data-match-id="${safeMatchId}" onclick="_deleteClipMcv(decodeURIComponent(this.dataset.filename),decodeURIComponent(this.dataset.matchId),this)"
                    style="padding:0.45rem 0.6rem;border-radius:8px;border:1px solid rgba(239,68,68,0.4);background:transparent;color:rgba(239,68,68,0.85);font-size:0.8rem;cursor:pointer;">
                   ✕
                 </button>` : ""}

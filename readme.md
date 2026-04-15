@@ -1,24 +1,25 @@
-# Beelup Video Downloader
+# Beelup Downloader
 
-Aplicación web para descargar videos de [Beelup](https://beelup.com/) con interfaz moderna y soporte multi-cámara.
+Aplicación web para descargar partidos de [Beelup](https://beelup.com/), administrarlos desde una biblioteca local y reproducirlos con herramientas pensadas para revisión técnica: selección de cámaras, vistas por tarjetas o calendario y recorte de clips.
 
 ## Características
 
-- **Interfaz Web Moderna**: Interfaz responsive con seguimiento de progreso en tiempo real
-- **Soporte Multi-Cámara**: Descarga simultánea de hasta 3 cámaras (Central, Izquierda, Derecha)
-- **Descarga Asíncrona**: Descarga optimizada con `aiohttp` para máxima velocidad
-- **Conversión Automática a MP4**: Opción de conversión automática con `ffmpeg`
-- **Seguridad**: Validación de inputs y protección contra path traversal
-- **Docker Ready**: Incluye Dockerfile y docker-compose para deployment fácil
-- **Reproductor Integrado**: Visualiza los videos descargados directamente desde la interfaz
-- **Gestión de Descargas**: Sistema de caché para evitar descargas duplicadas
+- **Biblioteca integrada**: vista principal con tarjetas, agrupación de cámaras y calendario de partidos descargados
+- **Acceso admin por PIN**: gestión protegida para iniciar descargas, generar clips y eliminar contenido
+- **Detección de cámaras**: identifica automáticamente las cámaras disponibles antes de descargar
+- **Descarga por cámara o en lote**: permite bajar una cámara específica o todas juntas en un archivo ZIP
+- **Reproductor avanzado**: reproducción inline, zoom, paneo, control de velocidad, saltos rápidos y cambio de cámara
+- **Clips MP4**: generación y guardado de clips desde el reproductor cuando `ffmpeg` está disponible
+- **Procesamiento automático**: remux a MP4 cuando `ffmpeg` está instalado, con fallback a `.ts` si no lo está
+- **Hardening básico**: validación de IDs, protección contra path traversal, cookies firmadas y rate limiting
+- **Docker / TrueNAS Ready**: incluye `Dockerfile` y `docker-compose` para despliegue en servidor o NAS
 
 ## Requisitos
 
 ### Local
 
 - Python 3.12+
-- ffmpeg (opcional, para conversión a MP4)
+- ffmpeg (opcional pero recomendado, para remux a MP4 y generación de clips)
 
 ### Docker
 
@@ -42,13 +43,23 @@ cd beelup-downloader
 pip install -r requirements.txt
 ```
 
-3. **Iniciar la aplicación**
+3. **Configurar acceso admin (opcional pero recomendado)**
+
+Si defines `ADMIN_PIN`, se habilitan las funciones de administración: iniciar descargas, descargar archivos desde el servidor, generar clips y borrar contenido.
+
+Variables soportadas actualmente:
+
+- `ADMIN_PIN`: PIN requerido para entrar en modo admin
+- `SECRET_KEY`: clave para firmar la cookie de admin; recomendable en producción
+- `TRUST_PROXY_HEADERS`: usa `X-Forwarded-For` y `X-Forwarded-Proto` si publicas la app detrás de un reverse proxy
+
+4. **Iniciar la aplicación**
 
 ```bash
 python app.py
 ```
 
-4. **Abrir el navegador**
+5. **Abrir el navegador**
 
 ```
 http://localhost:5000
@@ -62,7 +73,20 @@ http://localhost:5000
 docker-compose up -d
 ```
 
-2. **Acceder a la aplicación**
+2. **Opcional: habilitar admin en Docker**
+
+Si quieres usar funciones administrativas, agrega variables de entorno al servicio:
+
+```yaml
+services:
+  beelup-downloader:
+    environment:
+      - ADMIN_PIN=1234
+      - SECRET_KEY=cambia-esto-por-una-clave-larga
+      - TRUST_PROXY_HEADERS=true
+```
+
+3. **Acceder a la aplicación**
 
 ```
 http://localhost:5000
@@ -87,16 +111,27 @@ volumes:
 
 **Paso 2: Elegir método de imagen**
 
-- **Método A - Imagen pre-construida** (recomendado): Usa la línea `image: blu777/beelup-downloader:latest`
+- **Método A - Imagen pre-construida** (recomendado): Usa `image: blu777/beelup-downloader:latest` o fija la versión `2.1.0`
 - **Método B - Construir desde GitHub**: Comenta `image:` y descomenta las líneas de `build:`
 
-**Paso 3: Desplegar**
+**Paso 3: (Opcional) habilitar admin**
+
+Agrega variables de entorno al servicio si quieres permitir descargas y gestión autenticada:
+
+```yaml
+environment:
+  - ADMIN_PIN=1234
+  - SECRET_KEY=cambia-esto-por-una-clave-larga
+  - TRUST_PROXY_HEADERS=true
+```
+
+**Paso 4: Desplegar**
 
 ```bash
 docker-compose -f docker-compose.truenas.yml up -d
 ```
 
-**Paso 4: Verificar**
+**Paso 5: Verificar**
 
 ```bash
 docker ps
@@ -107,72 +142,91 @@ Accede desde: `http://<IP_TRUENAS>:5000`
 
 ## Modo de Uso
 
-1. **Obtener el ID del Video**
-   - Abre el reproductor de Beelup: `https://beelup.com/player.php?id=8890989`
-   - Copia el ID del parámetro `id` en la URL (ejemplo: `8890989`)
+1. **Entrar a la biblioteca**
+   - Abre `http://localhost:5000`
+   - La vista principal muestra los partidos descargados y los clips guardados
+   - Puedes alternar entre vista de tarjetas y calendario
 
-2. **Descargar el Video**
-   - Pega el ID o la URL completa en la interfaz web
-   - Selecciona las cámaras que deseas descargar
-   - Marca "Convertir a MP4" si deseas el formato MP4 (requiere ffmpeg)
-   - Haz clic en "Descargar"
+2. **Activar modo admin**
+   - Usa el botón `Admin` o el texto de versión del footer para abrir el modal de acceso
+   - Si `ADMIN_PIN` no está configurado, las funciones administrativas quedan deshabilitadas
 
-3. **Monitorear el Progreso**
-   - El progreso se actualiza en tiempo real
-   - Los videos descargados aparecen en el panel "Videos Descargados"
+3. **Iniciar una descarga**
+   - Ve a `Gestionar descargas`
+   - Pega el ID del partido o la URL completa de Beelup
+   - La app detecta las cámaras disponibles automáticamente
+   - Puedes descargar una cámara específica o todas juntas en ZIP
 
-4. **Reproducir o Descargar**
-   - Usa el reproductor integrado para ver los videos
-   - O descarga los archivos directamente desde el botón de descarga
+4. **Monitorear el progreso**
+   - El avance se actualiza en tiempo real
+   - Al terminar, podrás descargar el archivo final desde la interfaz de gestión
+
+5. **Revisar el material**
+   - Los partidos aparecen en la biblioteca con sus cámaras disponibles
+   - Desde el reproductor puedes cambiar de cámara, hacer zoom, pausar, adelantar o retroceder y descargar la cámara actual si eres admin
+
+6. **Generar clips**
+   - En el reproductor, el modo admin habilita la herramienta de clips
+   - Marca inicio y fin, luego genera un clip MP4
+   - Los clips guardados quedan agrupados por partido dentro de la biblioteca
 
 ## Estructura del Proyecto
 
 ```
 beelup-downloader/
-├── app.py                      # Aplicación Flask principal
-├── downloader_core.py          # Motor de descarga asíncrono
+├── app.py                      # App Flask, auth admin, catálogo, clips y endpoints HTTP
+├── downloader_core.py          # Motor de descarga, ensamblado, remux y ZIP multi-cámara
 ├── requirements.txt            # Dependencias Python
-├── Dockerfile                  # Imagen Docker
-├── docker-compose.yml          # Orquestación Docker
-├── static/                     # Assets estáticos (CSS, JS)
-├── templates/                  # Templates HTML
-│   ├── index.html             # Interfaz principal
-│   └── player.html            # Reproductor de video
-├── downloads/                  # Videos descargados (auto-creado)
-├── temp/                       # Archivos temporales (auto-creado)
-├── utils/                      # Utilidades y validadores
-└── scripts/                    # Scripts de testing
+├── Dockerfile                  # Imagen Docker oficial con ffmpeg
+├── docker-compose.yml          # Despliegue local con volúmenes persistentes
+├── docker-compose.truenas.yml  # Ejemplo de despliegue para NAS / TrueNAS
+├── templates/
+│   ├── index.html              # Biblioteca principal con tarjetas, calendario y modal admin
+│   ├── manage.html             # Flujo admin para iniciar descargas
+│   └── player.html             # Biblioteca alternativa / reproductor con herramientas de clip
+├── static/
+│   └── style.css               # Estilos auxiliares
+├── utils/                      # Configuración y validadores reutilizables
+├── scripts/                    # Scripts de validación y testing
+├── deprecated/                 # Scripts legacy conservados como referencia
+├── MIGRATION_GUIDE.md          # Guía de migración desde la versión script
+├── downloads/                  # Se crea automáticamente en runtime
+└── temp/                       # Se crea automáticamente en runtime
 
 ```
 
-## Configuración Avanzada
+## Configuración
 
-### Variables de Entorno (Docker)
+### Variables de entorno
 
-```yaml
-environment:
-  - FLASK_ENV=production
-  - DOWNLOAD_DIR=/app/downloads
-  - TEMP_DIR=/app/temp
-```
+| Variable | Descripción | Default |
+| --- | --- | --- |
+| `ADMIN_PIN` | Habilita el modo admin y protege las acciones sensibles | vacío |
+| `SECRET_KEY` | Firma la cookie de sesión admin | autogenerada |
+| `TRUST_PROXY_HEADERS` | Confía en `X-Forwarded-For` / `X-Forwarded-Proto` detrás de reverse proxy | `false` |
 
-### Volúmenes Persistentes
+### Almacenamiento
 
-```yaml
-volumes:
-  - ./downloads:/app/downloads
-  - ./temp:/app/temp
-```
+- `downloads/`: videos descargados, ZIPs y `metadata.json`
+- `downloads/clips/`: clips MP4 y `clips_metadata.json`
+- `temp/`: segmentos temporales durante la descarga
+- En Docker, estos directorios se montan como `/app/downloads` y `/app/temp`
+
+### ffmpeg
+
+- **Docker**: la imagen oficial ya instala `ffmpeg`
+- **Local**: si no está disponible, la app seguirá descargando, pero conservará archivos `.ts` y no podrá generar clips
 
 ## Formato de Salida
 
-- **Videos TS**: Archivos `.ts` (Transport Stream) compatibles con VLC
-- **Videos MP4**: Conversión automática si se selecciona la opción
-- **Multi-cámara**: Archivos separados por cámara: `video_8890989_central.mp4`, `video_8890989_izq.mp4`, etc.
+- **Partidos**: archivos `video_<id>.mp4` o `video_<id>.ts`, con prefijo de fecha cuando Beelup lo expone
+- **Cámaras específicas**: sufijos `_central`, `_izq` o `_der`
+- **ZIP multi-cámara**: `Beelup_<fecha>_<id>_todas_las_camaras_<hora>.zip`
+- **Clips**: archivos MP4 dentro de `downloads/clips/`
 
 ## Scripts de Utilidad
 
-Consulta `scripts/README.md` para scripts de testing y validación.
+Consulta `scripts/README.md` para los scripts de validación y pruebas auxiliares.
 
 ## Migración desde versión anterior
 
@@ -193,4 +247,4 @@ Este proyecto es de código abierto y está disponible bajo una licencia permisi
 
 ---
 
-**Versión**: 1.2.0
+**Versión**: 2.1.0

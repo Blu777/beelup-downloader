@@ -44,6 +44,18 @@
         /* ── Body ── */
         .lib-body { padding: 2rem; max-width: 1400px; margin: 0 auto; }
 
+        .library-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
+        .view-switch, .calendar-nav { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+        .view-btn, .calendar-btn {
+            padding: 0.38rem 0.8rem; border-radius: 9px; border: 1px solid var(--border);
+            background: rgba(255,255,255,0.03); color: var(--muted); font-family: inherit;
+            font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+        }
+        .view-btn:hover, .calendar-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.22); }
+        .view-btn.active { color: #fff; background: rgba(99,102,241,0.18); border-color: rgba(99,102,241,0.45); }
+        .calendar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .calendar-label { min-width: 170px; text-align: center; font-size: 0.8rem; font-weight: 700; color: var(--text); }
+
         /* ── Section header ── */
         .sec-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.25rem; margin-top: 2.5rem; }
         .sec-header:first-child { margin-top: 0; }
@@ -52,6 +64,36 @@
 
         /* ── Grid ── */
         .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
+
+        .calendar-shell { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1rem; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.75rem; }
+        .calendar-weekday {
+            text-align: center; font-size: 0.67rem; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 0.15rem;
+        }
+        .calendar-pad { min-height: 0; }
+        .calendar-day {
+            min-height: 150px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+            border-radius: 12px; padding: 0.65rem; display: flex; flex-direction: column; gap: 0.55rem;
+        }
+        .calendar-day.is-empty { background: transparent; }
+        .calendar-day.has-matches { border-color: rgba(99,102,241,0.22); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.08); }
+        .calendar-day-head { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+        .calendar-day-number { font-size: 0.82rem; font-weight: 700; color: var(--muted); }
+        .calendar-day.has-matches .calendar-day-number { color: var(--text); }
+        .calendar-day-count {
+            font-size: 0.62rem; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12);
+            padding: 0.12rem 0.38rem; border-radius: 999px;
+        }
+        .calendar-day-matches { display: flex; flex-direction: column; gap: 0.45rem; }
+        .calendar-match {
+            display: flex; flex-direction: column; gap: 0.2rem; padding: 0.45rem 0.55rem; border-radius: 10px;
+            text-decoration: none; background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(168,85,247,0.12));
+            border: 1px solid rgba(99,102,241,0.24); color: var(--text); transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+        .calendar-match:hover { transform: translateY(-1px); border-color: rgba(168,85,247,0.45); box-shadow: 0 6px 18px rgba(99,102,241,0.12); }
+        .calendar-match-title { font-size: 0.72rem; font-weight: 700; line-height: 1.25; }
+        .calendar-match-meta, .calendar-match-footer { font-size: 0.62rem; color: rgba(230,237,243,0.72); line-height: 1.25; }
 
         /* ── Card ── */
         .m-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -126,6 +168,14 @@
         .modal-btn-cancel { padding:0.55rem 0.9rem; border-radius:8px; border:1px solid var(--border); background:transparent; color:var(--muted); font-family:inherit; cursor:pointer; }
         .modal-logout-row { display:none; border-top:1px solid var(--border); padding-top:0.75rem; }
         .modal-btn-logout { width:100%; padding:0.5rem; border-radius:8px; border:1px solid rgba(239,68,68,0.4); background:transparent; color:rgba(239,68,68,0.85); font-family:inherit; cursor:pointer; font-size:0.82rem; }
+
+        @media (max-width: 760px) {
+            .lib-header { padding: 0.75rem 1rem; height: auto; flex-wrap: wrap; }
+            .lib-body { padding: 1rem; }
+            .calendar-label { min-width: 0; text-align: left; }
+            .calendar-shell { overflow-x: auto; }
+            .calendar-grid { min-width: 840px; }
+        }
     </style>
 </head>
 <body>
@@ -157,12 +207,26 @@
 
     <!-- ═══ MAIN ═══ -->
     <main class="lib-body">
+        <div class="library-toolbar">
+            <div class="view-switch">
+                <button id="gridViewBtn" class="view-btn active" type="button">▦ Tarjetas</button>
+                <button id="calendarViewBtn" class="view-btn" type="button">🗓 Calendario</button>
+            </div>
+            <div class="calendar-nav" id="calendarNav" style="display:none">
+                <button id="prevMonthBtn" class="calendar-btn" type="button">← Mes anterior</button>
+                <span id="calendarLabel" class="calendar-label">Calendario</span>
+                <button id="nextMonthBtn" class="calendar-btn" type="button">Mes siguiente →</button>
+            </div>
+        </div>
         <div class="sec-header">
             <span class="sec-title">Partidos descargados</span>
             <span class="sec-badge" id="matchBadge">–</span>
         </div>
         <div class="m-grid" id="matchGrid">
             <div class="empty"><div class="icon">⏳</div>Cargando partidos...</div>
+        </div>
+        <div class="calendar-shell" id="calendarSection">
+            <div class="calendar-grid" id="calendarGrid"></div>
         </div>
 
         <div id="orphanSection" style="display:none">
@@ -252,10 +316,95 @@
             return h ? `${h}:${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`
                      : `${m}:${String(ss).padStart(2,'0')}`;
         };
+        const escapeHtml = value =>
+            String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        const matchGrid = document.getElementById('matchGrid');
+        const calendarSection = document.getElementById('calendarSection');
+        const calendarGrid = document.getElementById('calendarGrid');
+        const gridViewBtn = document.getElementById('gridViewBtn');
+        const calendarViewBtn = document.getElementById('calendarViewBtn');
+        const calendarNav = document.getElementById('calendarNav');
+        const calendarLabel = document.getElementById('calendarLabel');
+        const prevMonthBtn = document.getElementById('prevMonthBtn');
+        const nextMonthBtn = document.getElementById('nextMonthBtn');
+
+        let _currentView = 'grid';
+        let _allMatches = [];
+        let _clipsByMatch = {};
+        let _calendarMonths = [];
+        let _calendarIndex = -1;
+
+        const parseMatchDate = value => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
+            const [year, month, day] = value.split('-').map(Number);
+            return new Date(year, month - 1, day, 12);
+        };
+        const formatMonthLabel = date => {
+            const label = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' }).format(date);
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        };
+        const compareMatches = (a, b) => {
+            const aDate = parseMatchDate(a.date);
+            const bDate = parseMatchDate(b.date);
+            if (aDate && bDate && aDate.getTime() !== bDate.getTime()) return bDate - aDate;
+            if (aDate) return -1;
+            if (bDate) return 1;
+            return String(b.id).localeCompare(String(a.id), 'es');
+        };
+
+        function setLibraryView(view) {
+            _currentView = view;
+            const isCalendar = view === 'calendar';
+            matchGrid.style.display = isCalendar ? 'none' : 'grid';
+            calendarSection.style.display = isCalendar ? '' : 'none';
+            calendarNav.style.display = (isCalendar && _calendarMonths.length) ? '' : 'none';
+            gridViewBtn.classList.toggle('active', !isCalendar);
+            calendarViewBtn.classList.toggle('active', isCalendar);
+            if (isCalendar) renderCalendar(_allMatches, _clipsByMatch);
+        }
+
+        function initCalendarMonths(matches) {
+            const currentKey = _calendarMonths[_calendarIndex] || null;
+            _calendarMonths = [...new Set(matches
+                .map(match => /^\d{4}-\d{2}-\d{2}$/.test(match.date || '') ? match.date.slice(0, 7) : null)
+                .filter(Boolean))].sort();
+            if (!_calendarMonths.length) {
+                _calendarIndex = -1;
+                return;
+            }
+            const nextIndex = currentKey ? _calendarMonths.indexOf(currentKey) : -1;
+            _calendarIndex = nextIndex >= 0 ? nextIndex : _calendarMonths.length - 1;
+        }
+
+        function renderLibrary() {
+            if (_currentView === 'calendar') renderCalendar(_allMatches, _clipsByMatch);
+            else renderMatches(_allMatches, _clipsByMatch);
+        }
+
+        gridViewBtn.addEventListener('click', () => setLibraryView('grid'));
+        calendarViewBtn.addEventListener('click', () => setLibraryView('calendar'));
+        prevMonthBtn.addEventListener('click', () => {
+            if (_calendarIndex > 0) {
+                _calendarIndex -= 1;
+                renderCalendar(_allMatches, _clipsByMatch);
+            }
+        });
+        nextMonthBtn.addEventListener('click', () => {
+            if (_calendarIndex >= 0 && _calendarIndex < _calendarMonths.length - 1) {
+                _calendarIndex += 1;
+                renderCalendar(_allMatches, _clipsByMatch);
+            }
+        });
 
         // ── Library loading ───────────────────────────────────────────
         async function loadLibrary() {
-            document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">⏳</div>Cargando...</div>';
+            matchGrid.innerHTML = '<div class="empty"><div class="icon">⏳</div>Cargando...</div>';
+            calendarGrid.innerHTML = '<div class="empty"><div class="icon">🗓️</div>Cargando calendario...</div>';
             try {
                 const [vRes, cRes] = await Promise.all([fetch('/api/videos'), fetch('/api/clips')]);
                 const { matches = [] } = await vRes.json();
@@ -269,16 +418,23 @@
                     else { g.clips.forEach(c => orphanClips.push(c)); }
                 });
 
-                document.getElementById('matchBadge').textContent = matches.length;
-                renderMatches(matches, clipsByMatch);
+                const sortedMatches = matches.slice().sort(compareMatches);
+                _allMatches = sortedMatches;
+                _clipsByMatch = clipsByMatch;
+                initCalendarMonths(sortedMatches);
+
+                document.getElementById('matchBadge').textContent = sortedMatches.length;
+                renderLibrary();
                 renderOrphans(orphanClips);
             } catch {
-                document.getElementById('matchGrid').innerHTML = '<div class="empty"><div class="icon">⚠️</div>Error cargando la biblioteca</div>';
+                const errorHtml = '<div class="empty"><div class="icon">⚠️</div>Error cargando la biblioteca</div>';
+                matchGrid.innerHTML = errorHtml;
+                calendarGrid.innerHTML = errorHtml;
             }
         }
 
         function renderMatches(matches, clipsByMatch) {
-            const grid = document.getElementById('matchGrid');
+            const grid = matchGrid;
             if (!matches.length) {
                 grid.innerHTML = `<div class="empty"><div class="icon">📂</div>
                     No hay partidos descargados aún.<br>
@@ -290,17 +446,79 @@
             matches.forEach(m => grid.appendChild(buildMatchCard(m, clipsByMatch[m.id] || [])));
         }
 
+        function renderCalendar(matches, clipsByMatch) {
+            const datedMatches = matches.filter(match => parseMatchDate(match.date));
+            if (!_calendarMonths.length || !datedMatches.length) {
+                calendarLabel.textContent = 'Sin fechas disponibles';
+                prevMonthBtn.disabled = true;
+                nextMonthBtn.disabled = true;
+                calendarNav.style.display = 'none';
+                calendarGrid.innerHTML = '<div class="empty"><div class="icon">🗓️</div>No hay partidos con fecha registrada todavía.</div>';
+                return;
+            }
+
+            const monthKey = _calendarMonths[_calendarIndex];
+            const [year, month] = monthKey.split('-').map(Number);
+            const monthDate = new Date(year, month - 1, 1, 12);
+            const firstWeekday = (monthDate.getDay() + 6) % 7;
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const weekdayNames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+            const monthMatches = datedMatches
+                .filter(match => match.date.startsWith(monthKey))
+                .sort((a, b) => parseMatchDate(a.date) - parseMatchDate(b.date) || String(a.title || a.id).localeCompare(String(b.title || b.id), 'es'));
+
+            const matchesByDate = {};
+            monthMatches.forEach(match => {
+                if (!matchesByDate[match.date]) matchesByDate[match.date] = [];
+                matchesByDate[match.date].push(match);
+            });
+
+            calendarLabel.textContent = `${formatMonthLabel(monthDate)} · ${monthMatches.length} partido${monthMatches.length === 1 ? '' : 's'}`;
+            prevMonthBtn.disabled = _calendarIndex <= 0;
+            nextMonthBtn.disabled = _calendarIndex >= _calendarMonths.length - 1;
+
+            let html = weekdayNames.map(day => `<div class="calendar-weekday">${day}</div>`).join('');
+            for (let i = 0; i < firstWeekday; i += 1) html += '<div class="calendar-pad"></div>';
+
+            for (let day = 1; day <= daysInMonth; day += 1) {
+                const dateKey = `${monthKey}-${String(day).padStart(2, '0')}`;
+                const dayMatches = matchesByDate[dateKey] || [];
+                html += `
+                    <div class="calendar-day ${dayMatches.length ? 'has-matches' : 'is-empty'}">
+                        <div class="calendar-day-head">
+                            <span class="calendar-day-number">${day}</span>
+                            ${dayMatches.length ? `<span class="calendar-day-count">${dayMatches.length}</span>` : ''}
+                        </div>
+                        ${dayMatches.length ? `<div class="calendar-day-matches">${dayMatches.map(match => {
+                            const clipCount = (clipsByMatch[match.id] || []).length;
+                            const location = match.complejo
+                                ? `${match.complejo}${match.cancha ? ` · Cancha ${match.cancha}` : ''}`
+                                : `ID ${match.id}`;
+                            return `<a class="calendar-match" href="/player?id=${encodeURIComponent(match.id)}">
+                                <span class="calendar-match-title">${escapeHtml(match.title || `Partido #${match.id}`)}</span>
+                                <span class="calendar-match-meta">${escapeHtml(location)}</span>
+                                <span class="calendar-match-footer">${match.cameras.length} cám${match.cameras.length === 1 ? '' : 's'}${clipCount ? ` · ✂ ${clipCount}` : ''}</span>
+                            </a>`;
+                        }).join('')}</div>` : ''}
+                    </div>`;
+            }
+
+            calendarGrid.innerHTML = html;
+        }
+
         function buildMatchCard(match, clips) {
             const totalMB = match.cameras.reduce((s, c) => s + c.size_mb, 0);
             const sz = totalMB > 1024 ? `${(totalMB/1024).toFixed(2)} GB` : `${totalMB.toFixed(0)} MB`;
             const title = match.title || `Partido #${match.id}`;
+            const safeMatchId = encodeURIComponent(match.id);
             const meta = [
                 match.date    ? `📅 ${match.date}` : null,
                 match.complejo ? `🏟️ ${match.complejo}${match.cancha ? ` – Cancha ${match.cancha}` : ''}` : null,
                 `🆔 ${match.id} · 💾 ${sz}`
             ].filter(Boolean);
 
-            const camPills = match.cameras.map(c => `<span class="cam-pill">${c.label}</span>`).join('');
+            const camPills = match.cameras.map(c => `<span class="cam-pill">${escapeHtml(c.label)}</span>`).join('');
             const card = document.createElement('div');
             card.className = 'm-card';
             card.innerHTML = `
@@ -310,15 +528,15 @@
                     ${clips.length ? `<span class="badge badge-clips">✂ ${clips.length}</span>` : ''}
                 </div>
                 <div class="card-body">
-                    <div class="card-title">${title}</div>
-                    <div class="card-meta">${meta.map(l => `<span>${l}</span>`).join('')}</div>
+                    <div class="card-title">${escapeHtml(title)}</div>
+                    <div class="card-meta">${meta.map(l => `<span>${escapeHtml(l)}</span>`).join('')}</div>
                     <div class="cam-pills">${camPills}</div>
                     <div class="card-actions">
-                        <a href="/player?id=${match.id}" class="btn btn-play">▶ Partido</a>
-                        ${clips.length ? `<a href="/player?id=${match.id}&view=clips" class="btn btn-ghost">✂ ${clips.length} clip${clips.length>1?'s':''}</a>` : ''}
+                        <a href="/player?id=${safeMatchId}" class="btn btn-play">▶ Partido</a>
+                        ${clips.length ? `<a href="/player?id=${safeMatchId}&view=clips" class="btn btn-ghost">✂ ${clips.length} clip${clips.length>1?'s':''}</a>` : ''}
                         ${_isAdmin ? `
-                            <a href="/api/file_zip/${match.id}" class="btn btn-ghost" download title="Descargar ZIP">⬇ ZIP</a>
-                            <button class="btn btn-danger" title="Eliminar partido" onclick="_deleteMatch('${match.id}',this)">🗑</button>
+                            <a href="/api/file_zip/${safeMatchId}" class="btn btn-ghost" download title="Descargar ZIP">⬇ ZIP</a>
+                            <button class="btn btn-danger" title="Eliminar partido" data-match-id="${safeMatchId}" onclick="_deleteMatch(decodeURIComponent(this.dataset.matchId),this)">🗑</button>
                         ` : ''}
                     </div>
                     ${clips.length ? buildClipsSection(clips) : ''}
@@ -331,15 +549,16 @@
         function buildClipsSection(clips) {
             const rows = clips.map(c => {
                 const dur = (c.start != null && c.end != null) ? c.end - c.start : null;
+                const safeFilename = encodeURIComponent(c.filename);
                 return `<div class="clip-row">
                     <span class="clip-time">${fmt(c.start)} → ${fmt(c.end)}</span>
-                    ${c.cam_id ? `<span class="clip-tag">${CAM_LABEL[c.cam_id] || c.cam_id}</span>` : ''}
+                    ${c.cam_id ? `<span class="clip-tag">${escapeHtml(CAM_LABEL[c.cam_id] || c.cam_id)}</span>` : ''}
                     ${dur ? `<span class="clip-tag">⏱ ${fmt(dur)}</span>` : ''}
                     <span class="clip-tag">${c.size_mb} MB</span>
-                    <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-ghost btn-sm">▶</a>
+                    <a href="/api/clips/stream/${safeFilename}" target="_blank" class="btn btn-ghost btn-sm">▶</a>
                     ${_isAdmin ? `
-                        <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost btn-sm">⬇</a>
-                        <button class="btn btn-danger btn-sm" onclick="_deleteClip('${c.filename}',this)">🗑</button>
+                        <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.filename)}" class="btn btn-ghost btn-sm">⬇</a>
+                        <button class="btn btn-danger btn-sm" data-filename="${safeFilename}" onclick="_deleteClip(decodeURIComponent(this.dataset.filename),this)">🗑</button>
                     ` : ''}
                 </div>`;
             }).join('');
@@ -361,6 +580,7 @@
             grid.innerHTML = '';
             orphans.forEach(c => {
                 const dur = (c.start != null && c.end != null) ? c.end - c.start : null;
+                const safeFilename = encodeURIComponent(c.filename);
                 const card = document.createElement('div');
                 card.className = 'm-card';
                 card.innerHTML = `
@@ -368,15 +588,15 @@
                     <div class="card-body">
                         <div class="card-title">${fmt(c.start)} → ${fmt(c.end)}</div>
                         <div class="card-meta">
-                            ${c.cam_id ? `<span>🎥 ${CAM_LABEL[c.cam_id] || c.cam_id}</span>` : ''}
+                            ${c.cam_id ? `<span>🎥 ${escapeHtml(CAM_LABEL[c.cam_id] || c.cam_id)}</span>` : ''}
                             ${dur ? `<span>⏱ ${fmt(dur)}</span>` : ''}
                             <span>💾 ${c.size_mb} MB</span>
                         </div>
                         <div class="card-actions">
-                            <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" target="_blank" class="btn btn-play">▶ Reproducir</a>
+                            <a href="/api/clips/stream/${safeFilename}" target="_blank" class="btn btn-play">▶ Reproducir</a>
                             ${_isAdmin ? `
-                                <a href="/api/clips/stream/${encodeURIComponent(c.filename)}" download="${c.filename}" class="btn btn-ghost">⬇</a>
-                                <button class="btn btn-danger" onclick="_deleteClip('${c.filename}',this)">🗑</button>
+                                <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.filename)}" class="btn btn-ghost">⬇</a>
+                                <button class="btn btn-danger" data-filename="${safeFilename}" onclick="_deleteClip(decodeURIComponent(this.dataset.filename),this)">🗑</button>
                             ` : ''}
                         </div>
                     </div>`;
