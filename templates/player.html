@@ -1281,6 +1281,7 @@
       zoomCorner.addEventListener("click", resetZ);
 
       dragOverlay.addEventListener("touchstart", (e) => {
+        handlePinchStart(e);
         if (scale <= 1.01 || e.touches.length !== 1 || Date.now() < zoomTapBlockedUntil) {
           zoomTapEligible = false;
           if (e.touches.length !== 1) zoomTapBlockedUntil = Date.now() + 180;
@@ -1295,8 +1296,10 @@
           time: Date.now(),
         };
         zoomTapMoved = false;
-      }, { passive: true });
+      }, { passive: false });
       dragOverlay.addEventListener("touchmove", (e) => {
+        handlePinchMove(e);
+        if (activeTouches.size > 1) return;
         if (!zoomTapEligible || !zoomTapStart) return;
         const touch = Array.from(e.touches).find(
           (item) => item.identifier === zoomTapStart.identifier,
@@ -1313,10 +1316,12 @@
           zoomTapMoved = true;
           zoomTapBlockedUntil = Date.now() + 180;
         }
-      }, { passive: true });
+      }, { passive: false });
       dragOverlay.addEventListener("touchend", (e) => {
+        let shouldToggleControls = false;
         if (!zoomTapEligible || !zoomTapStart || Date.now() < zoomTapBlockedUntil) {
           zoomTapEligible = false;
+          handlePinchEnd(e);
           zoomTapStart = null;
           zoomTapMoved = false;
           return;
@@ -1330,13 +1335,18 @@
           e.touches.length === 0 &&
           Date.now() - zoomTapStart.time <= 240
         ) {
-          toggleControls();
+          shouldToggleControls = true;
         }
+        handlePinchEnd(e);
         zoomTapEligible = false;
         zoomTapStart = null;
         zoomTapMoved = false;
+        if (shouldToggleControls && activeTouches.size === 0) {
+          toggleControls();
+        }
       });
-      dragOverlay.addEventListener("touchcancel", () => {
+      dragOverlay.addEventListener("touchcancel", (e) => {
+        handlePinchEnd(e);
         zoomTapEligible = false;
         zoomTapBlockedUntil = Date.now() + 180;
         zoomTapStart = null;
@@ -1743,15 +1753,59 @@
         };
       }
 
+      function syncActiveTouches(changedTouches) {
+        Array.from(changedTouches).forEach((touch) => {
+          activeTouches.set(touch.identifier, touch);
+        });
+      }
+
+      function handlePinchStart(e) {
+        syncActiveTouches(e.changedTouches);
+
+        if (activeTouches.size === 2) {
+          e.preventDefault();
+          const touches = Array.from(activeTouches.values());
+          initialPinchDistance = getTouchDistance(touches[0], touches[1]);
+          initialPinchScale = scale;
+        }
+      }
+
+      function handlePinchMove(e) {
+        syncActiveTouches(e.changedTouches);
+
+        if (activeTouches.size === 2 && initialPinchDistance > 0) {
+          e.preventDefault();
+          const touches = Array.from(activeTouches.values());
+          const currentDistance = getTouchDistance(touches[0], touches[1]);
+          const center = getTouchCenter(touches[0], touches[1]);
+          const rect = zoomWrap.getBoundingClientRect();
+          const scaleMultiplier = currentDistance / initialPinchDistance;
+          const newScale = initialPinchScale * scaleMultiplier;
+
+          setZ(
+            newScale,
+            center.x - rect.left - rect.width / 2,
+            center.y - rect.top - rect.height / 2,
+          );
+        }
+      }
+
+      function handlePinchEnd(e) {
+        Array.from(e.changedTouches).forEach((touch) => {
+          activeTouches.delete(touch.identifier);
+        });
+
+        if (activeTouches.size < 2) {
+          initialPinchDistance = 0;
+        }
+      }
+
       zoomWrap.addEventListener(
         "touchstart",
         (e) => {
-          if (scale > 1.01) return;
-          Array.from(e.changedTouches).forEach((touch) => {
-            activeTouches.set(touch.identifier, touch);
-          });
+          handlePinchStart(e);
 
-          if (activeTouches.size === 1 && e.changedTouches.length === 1) {
+          if (scale <= 1.01 && activeTouches.size === 1 && e.changedTouches.length === 1) {
             const touch = e.changedTouches[0];
             touchTapStart = {
               identifier: touch.identifier,
@@ -1764,26 +1818,15 @@
             touchTapStart = null;
             touchTapMoved = false;
           }
-
-          if (activeTouches.size === 2) {
-            e.preventDefault();
-            const touches = Array.from(activeTouches.values());
-            initialPinchDistance = getTouchDistance(touches[0], touches[1]);
-            initialPinchScale = scale;
-          }
         },
         { passive: false },
       );
-
       zoomWrap.addEventListener(
         "touchmove",
         (e) => {
-          if (scale > 1.01) return;
-          Array.from(e.changedTouches).forEach((touch) => {
-            activeTouches.set(touch.identifier, touch);
-          });
+          handlePinchMove(e);
 
-          if (touchTapStart && activeTouches.size === 1) {
+          if (scale <= 1.01 && touchTapStart && activeTouches.size === 1) {
             const touch = activeTouches.get(touchTapStart.identifier);
             if (touch) {
               const moveX = touch.clientX - touchTapStart.x;
@@ -1793,29 +1836,11 @@
               }
             }
           }
-
-          if (activeTouches.size === 2) {
-            e.preventDefault();
-            const touches = Array.from(activeTouches.values());
-            const currentDistance = getTouchDistance(touches[0], touches[1]);
-            const center = getTouchCenter(touches[0], touches[1]);
-            const rect = zoomWrap.getBoundingClientRect();
-
-            const scaleMultiplier = currentDistance / initialPinchDistance;
-            const newScale = initialPinchScale * scaleMultiplier;
-
-            setZ(
-              newScale,
-              center.x - rect.left - rect.width / 2,
-              center.y - rect.top - rect.height / 2,
-            );
-          }
         },
         { passive: false },
       );
 
       zoomWrap.addEventListener("touchend", (e) => {
-        if (scale > 1.01) return;
         let tapCandidateX = null;
 
         if (
@@ -1832,13 +1857,7 @@
           }
         }
 
-        Array.from(e.changedTouches).forEach((touch) => {
-          activeTouches.delete(touch.identifier);
-        });
-
-        if (activeTouches.size < 2) {
-          initialPinchDistance = 0;
-        }
+        handlePinchEnd(e);
 
         if (activeTouches.size === 0) {
           touchTapStart = null;
@@ -1880,11 +1899,7 @@
       });
 
       zoomWrap.addEventListener("touchcancel", (e) => {
-        if (scale > 1.01) return;
-        Array.from(e.changedTouches).forEach((touch) => {
-          activeTouches.delete(touch.identifier);
-        });
-        initialPinchDistance = 0;
+        handlePinchEnd(e);
         touchTapStart = null;
         touchTapMoved = false;
       });
