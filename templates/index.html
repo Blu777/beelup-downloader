@@ -551,13 +551,14 @@
                 const dur = (c.start != null && c.end != null) ? c.end - c.start : null;
                 const safeFilename = encodeURIComponent(c.filename);
                 return `<div class="clip-row">
+                    <span class="clip-tag">✂ ${escapeHtml(c.name || c.filename)}</span>
                     <span class="clip-time">${fmt(c.start)} → ${fmt(c.end)}</span>
                     ${c.cam_id ? `<span class="clip-tag">${escapeHtml(CAM_LABEL[c.cam_id] || c.cam_id)}</span>` : ''}
                     ${dur ? `<span class="clip-tag">⏱ ${fmt(dur)}</span>` : ''}
                     <span class="clip-tag">${c.size_mb} MB</span>
                     <a href="/api/clips/stream/${safeFilename}" target="_blank" class="btn btn-ghost btn-sm">▶</a>
                     ${_isAdmin ? `
-                        <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.filename)}" class="btn btn-ghost btn-sm">⬇</a>
+                        <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.download_name || c.filename)}" class="btn btn-ghost btn-sm">⬇</a>
                         <button class="btn btn-danger btn-sm" data-filename="${safeFilename}" onclick="_deleteClip(decodeURIComponent(this.dataset.filename),this)">🗑</button>
                     ` : ''}
                 </div>`;
@@ -586,8 +587,9 @@
                 card.innerHTML = `
                     <div class="card-thumb" style="height:80px;font-size:2.2rem;">✂</div>
                     <div class="card-body">
-                        <div class="card-title">${fmt(c.start)} → ${fmt(c.end)}</div>
+                        <div class="card-title">${escapeHtml(c.name || c.filename)}</div>
                         <div class="card-meta">
+                            <span>${fmt(c.start)} → ${fmt(c.end)}</span>
                             ${c.cam_id ? `<span>🎥 ${escapeHtml(CAM_LABEL[c.cam_id] || c.cam_id)}</span>` : ''}
                             ${dur ? `<span>⏱ ${fmt(dur)}</span>` : ''}
                             <span>💾 ${c.size_mb} MB</span>
@@ -595,7 +597,7 @@
                         <div class="card-actions">
                             <a href="/api/clips/stream/${safeFilename}" target="_blank" class="btn btn-play">▶ Reproducir</a>
                             ${_isAdmin ? `
-                                <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.filename)}" class="btn btn-ghost">⬇</a>
+                                <a href="/api/clips/download/${safeFilename}" download="${escapeHtml(c.download_name || c.filename)}" class="btn btn-ghost">⬇</a>
                                 <button class="btn btn-danger" data-filename="${safeFilename}" onclick="_deleteClip(decodeURIComponent(this.dataset.filename),this)">🗑</button>
                             ` : ''}
                         </div>

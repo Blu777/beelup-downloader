@@ -175,6 +175,23 @@ def _parse_video_filename(filename: str) -> tuple[str, str] | None:
     cam_id = match.group(3) or ""
     return match_id, cam_id
 
+def _normalize_clip_name(value) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.strip().split())
+    if not normalized:
+        return None
+    normalized = normalized[:120].strip()
+    normalized = "".join(" " if ch in '<>:"/\\|?*' else ch for ch in normalized)
+    normalized = " ".join(normalized.split())
+    return normalized or None
+
+def _clip_download_name(clip_name: str | None, filename: str) -> str:
+    normalized = _normalize_clip_name(clip_name)
+    if normalized:
+        return normalized if normalized.lower().endswith(".mp4") else f"{normalized}.mp4"
+    return os.path.basename(filename)
+
 def _write_json_atomic(filepath: str, data) -> None:
     tmp_path = f"{filepath}.tmp"
     with open(tmp_path, "w", encoding="utf-8") as f:
@@ -474,6 +491,7 @@ def download_clip(filename):
         end   = float(data.get("end", 0))
     except (TypeError, ValueError):
         return jsonify({"error": "Tiempos inválidos"}), 400
+    clip_name = _normalize_clip_name(data.get("name", ""))
 
     if not math.isfinite(start) or not math.isfinite(end) or start < 0 or end < 0:
         return jsonify({"error": "Tiempos inválidos"}), 400
@@ -481,6 +499,8 @@ def download_clip(filename):
         return jsonify({"error": "El tiempo de fin debe ser mayor al de inicio"}), 400
     if (end - start) > 3600:
         return jsonify({"error": "El clip no puede ser mayor a 1 hora"}), 400
+    if not clip_name:
+        return jsonify({"error": "Debes ingresar un nombre para el clip"}), 400
 
     if not (filename.endswith(".mp4") or filename.endswith(".ts")):
         return "Tipo de archivo no permitido", 403
@@ -526,26 +546,27 @@ def download_clip(filename):
     if proc.returncode != 0 or not os.path.exists(out_path):
         return jsonify({"error": "Error al generar el clip"}), 500
 
-    # Save clip metadata
-    if match_id:
-        clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
-        try:
-            def mutate(clips_meta):
-                clips_meta[out_name] = {
-                    "match_id": match_id,
-                    "cam_id":   cam_id,
-                    "start":    start,
-                    "end":      end,
-                    "filename": out_name,
-                }
+    clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+    try:
+        def mutate(clips_meta):
+            clips_meta[out_name] = {
+                "match_id": match_id,
+                "cam_id":   cam_id,
+                "start":    start,
+                "end":      end,
+                "filename": out_name,
+                "name":     clip_name,
+            }
 
-            _update_json_dict(clips_meta_file, mutate)
-        except Exception:
-            pass
+        _update_json_dict(clips_meta_file, mutate)
+    except Exception:
+        pass
 
     return jsonify({
         "ok": True,
         "filename": out_name,
+        "name": clip_name,
+        "download_name": _clip_download_name(clip_name, out_name),
         "download_url": f"/api/clips/download/{out_name}",
         "size_mb": round(os.path.getsize(out_path) / (1024 * 1024), 1),
     })
@@ -583,7 +604,8 @@ def list_clips():
             except OSError:
                 continue
             meta    = clips_meta.get(fname, {})
-            mid     = meta.get("match_id", "unknown")
+            mid     = meta.get("match_id") or "unknown"
+            clip_name = meta.get("name") or os.path.splitext(fname)[0]
 
             raw = match_meta.get(mid, {})
             if isinstance(raw, dict):
@@ -596,6 +618,8 @@ def list_clips():
 
             groups[mid]["clips"].append({
                 "filename": fname,
+                "name":     clip_name,
+                "download_name": _clip_download_name(clip_name, fname),
                 "start":    meta.get("start"),
                 "end":      meta.get("end"),
                 "cam_id":   meta.get("cam_id", ""),
@@ -624,7 +648,10 @@ def download_saved_clip(filename):
         return "Acceso denegado", 403
     if not os.path.exists(filepath):
         return "File not found", 404
-    return send_file(filepath, mimetype="video/mp4", as_attachment=True, download_name=os.path.basename(filepath))
+    clips_meta_file = os.path.join(os.path.dirname(filepath), "clips_metadata.json")
+    clip_meta = _load_json_dict(clips_meta_file).get(filename, {})
+    download_name = _clip_download_name(clip_meta.get("name"), filepath)
+    return send_file(filepath, mimetype="video/mp4", as_attachment=True, download_name=download_name)
 
 @app.route("/api/clips/delete/<path:filename>", methods=["DELETE"])
 def delete_clip(filename):

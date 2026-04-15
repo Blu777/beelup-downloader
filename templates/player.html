@@ -576,6 +576,21 @@
         background: rgba(99,102,241,0.3);
         border-color: var(--accent);
       }
+      .clip-name-input {
+        min-width: 180px;
+        padding: 0.42rem 0.7rem;
+        border-radius: 8px;
+        border: 1.5px solid var(--border);
+        background: rgba(255,255,255,0.04);
+        color: var(--text);
+        font-family: "Outfit", sans-serif;
+        font-size: 0.76rem;
+        outline: none;
+      }
+      .clip-name-input:focus {
+        border-color: rgba(99,102,241,0.65);
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+      }
       .clip-btn {
         padding: 0.28rem 0.7rem;
         border-radius: 7px;
@@ -889,6 +904,7 @@
         <span class="clip-time-badge" id="clipInBadge">--:--</span>
         <button class="clip-btn" id="clipOutBtn">◁ Marcar fin</button>
         <span class="clip-time-badge" id="clipOutBadge">--:--</span>
+        <input type="text" class="clip-name-input" id="clipNameInput" maxlength="120" placeholder="Nombre del clip" />
         <span class="clip-spacer"></span>
         <span class="clip-progress" id="clipProgress"></span>
         <button class="clip-btn primary" id="clipRecBtn" disabled>⬇ Generar clip</button>
@@ -946,6 +962,7 @@
       const clipOutBtn    = document.getElementById("clipOutBtn");
       const clipInBadge   = document.getElementById("clipInBadge");
       const clipOutBadge  = document.getElementById("clipOutBadge");
+      const clipNameInput = document.getElementById("clipNameInput");
       const clipRecBtn    = document.getElementById("clipRecBtn");
       const clipResetBtn  = document.getElementById("clipResetBtn");
       const clipProgress  = document.getElementById("clipProgress");
@@ -1144,29 +1161,37 @@
       });
 
       function _updateClipRecBtn() {
+        const clipName = clipNameInput.value.trim();
         const ready =
           clipInTime !== null &&
           clipOutTime !== null &&
-          clipOutTime > clipInTime;
+          clipOutTime > clipInTime &&
+          !!clipName;
         clipRecBtn.disabled = clipRecording || !ready;
         clipRecBtn.title = clipRecording
           ? "Generando clip…"
           : ready
           ? `Generar clip de ${fmt(clipOutTime - clipInTime)}`
-          : "Marca inicio y fin válidos";
+          : "Marca inicio, fin y nombre válidos";
       }
 
       function _setClipControlsBusy(isBusy) {
         clipInBtn.disabled = isBusy;
         clipOutBtn.disabled = isBusy;
         clipResetBtn.disabled = isBusy;
+        clipNameInput.disabled = isBusy;
       }
+
+      clipNameInput.addEventListener("input", () => {
+        _updateClipRecBtn();
+      });
 
       clipResetBtn.addEventListener("click", () => {
         if (clipRecording) return;
         clipInTime = clipOutTime = null;
         clipInBadge.textContent = "--:--";
         clipOutBadge.textContent = "--:--";
+        clipNameInput.value = "";
         clipInBadge.classList.remove("set");
         clipOutBadge.classList.remove("set");
         clipProgress.textContent = "";
@@ -1177,6 +1202,8 @@
         if (clipRecording) return;
         if (clipInTime === null || clipOutTime === null || clipOutTime <= clipInTime) return;
         if (!_currentClipFilename) return;
+        const clipName = clipNameInput.value.trim();
+        if (!clipName) return;
 
         clipProgress.textContent = "Generando clip MP4…";
         clipRecording = true;
@@ -1192,6 +1219,7 @@
             body: JSON.stringify({
               start: Number(clipInTime.toFixed(3)),
               end: Number(clipOutTime.toFixed(3)),
+              name: clipName,
             }),
           });
 
@@ -1208,13 +1236,21 @@
           clipProgress.textContent = "Descarga iniciada…";
           const a = document.createElement("a");
           a.href = payload.download_url;
-          a.download = payload.filename || `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
+          a.download = payload.download_name || payload.filename || `clip_${fmt(clipInTime).replace(/:/g, "-")}_${fmt(clipOutTime).replace(/:/g, "-")}.mp4`;
           document.body.appendChild(a);
           a.click();
           setTimeout(() => { a.remove(); }, 1000);
           clipProgress.textContent = payload.size_mb != null
-            ? `✓ Clip listo para descarga (${payload.size_mb} MB)`
-            : "✓ Clip listo para descarga";
+            ? `✓ Clip "${payload.name || clipName}" listo para descarga (${payload.size_mb} MB)`
+            : `✓ Clip "${payload.name || clipName}" listo para descarga`;
+          clipInTime = clipOutTime = null;
+          clipInBadge.textContent = "--:--";
+          clipOutBadge.textContent = "--:--";
+          clipNameInput.value = "";
+          clipInBadge.classList.remove("set");
+          clipOutBadge.classList.remove("set");
+          if (_currentMatchId) loadClipsForTimeline(_currentMatchId);
+          loadClips();
 
         } catch (err) {
           clipProgress.textContent = `Error: ${err.message}`;
@@ -1746,6 +1782,7 @@
                 ${camLabel ? `<span class="cam-count-badge">${escapeHtml(camLabel)}</span>` : ""}
               </div>
               <div class="card-body">
+                <div style="font-size:0.95rem;font-weight:700;color:var(--text);line-height:1.25;">${escapeHtml(clip.name || clip.filename)}</div>
                 <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
                 <div class="card-meta">
                   ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
@@ -1758,7 +1795,7 @@
                     ▶ Reproducir
                   </a>
                   ${_isAdmin ? `<a href="/api/clips/download/${safeFilename}"
-                     download="${escapeHtml(clip.filename)}"
+                     download="${escapeHtml(clip.download_name || clip.filename)}"
                      style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
                     ⬇ Descargar
                   </a>` : ""}
@@ -1820,7 +1857,7 @@
           const marker = document.createElement("div");
           marker.className = "clip-marker";
           marker.style.left = `calc(6.5px + ${fraction} * (100% - 13px))`;
-          marker.title = `Clip: ${fmt(clip.start)}`;
+          marker.title = clip.name ? `${clip.name} · ${fmt(clip.start)}` : `Clip: ${fmt(clip.start)}`;
           container.appendChild(marker);
         });
       }
@@ -1869,6 +1906,7 @@
               ${camLabel ? `<span class="cam-count-badge">${escapeHtml(camLabel)}</span>` : ""}
             </div>
             <div class="card-body">
+              <div style="font-size:0.95rem;font-weight:700;color:var(--text);line-height:1.25;">${escapeHtml(clip.name || clip.filename)}</div>
               <div class="card-id" style="font-size:0.82rem;">${fmtTime(clip.start)} → ${fmtTime(clip.end)}</div>
               <div class="card-meta">
                 ${duration != null ? `<span>⏱ ${fmtTime(duration)}</span>` : ""}
@@ -1881,7 +1919,7 @@
                   ▶ Reproducir
                 </a>
                 ${_isAdmin ? `<a href="/api/clips/download/${safeFilename}"
-                   download="${escapeHtml(clip.filename)}"
+                   download="${escapeHtml(clip.download_name || clip.filename)}"
                    style="flex:1;text-align:center;padding:0.45rem;border-radius:8px;border:1px solid var(--border);color:var(--text);font-size:0.8rem;font-weight:600;text-decoration:none;background:rgba(255,255,255,0.04);">
                   ⬇ Descargar
                 </a>` : ""}
