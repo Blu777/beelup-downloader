@@ -111,7 +111,7 @@ volumes:
 
 **Paso 2: Elegir método de imagen**
 
-- **Método A - Imagen pre-construida** (recomendado): Usa `image: blu777/beelup-downloader:latest` o fija la versión `2.1.0`
+- **Método A - Imagen pre-construida** (recomendado): Usa `image: blu777/beelup-downloader:latest` o fija la versión `2.1.1`
 - **Método B - Construir desde GitHub**: Comenta `image:` y descomenta las líneas de `build:`
 
 **Paso 3: (Opcional) habilitar admin**
@@ -241,10 +241,10 @@ Las contribuciones son bienvenidas. Por favor abre un issue primero para discuti
 Este proyecto es de código abierto y está disponible bajo una licencia permisiva.
 
 ## Enlaces
-
-- [Beelup](https://beelup.com/)
-- [Issues](https://github.com/Blu777/beelup-downloader/issues)
-
----
-
-**Versión**: 2.1.0
+ 
+ - [Beelup](https://beelup.com/)
+ - [Issues](https://github.com/Blu777/beelup-downloader/issues)
+ 
+ ---
+ 
+ **Versión**: 2.1.1
