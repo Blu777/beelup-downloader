@@ -1163,6 +1163,19 @@
       // ── rotation state ───────────────────────────────────────────
       let _rotationActive = false;
 
+      function needsRotationForPlayback(matchMeta, cam) {
+        const cancha = String(matchMeta?.cancha ?? "")
+          .trim()
+          .toLowerCase();
+        const camId = String(cam?.cam_id ?? "")
+          .trim()
+          .toLowerCase();
+        const filename = String(cam?.filename ?? "").toLowerCase();
+        const isCourt31 = cancha === "31" || /\b31\b/.test(cancha);
+        const isRightCamera = camId === "der" || /_der\.(mp4|ts)$/i.test(filename);
+        return !!matchMeta && isCourt31 && isRightCamera;
+      }
+
       function applyRotation(active) {
         _rotationActive = active;
         if (active) {
@@ -1913,12 +1926,8 @@
         videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         videoPlayer.load();
 
-        // Cancha 31 + Cámara 3 (der) → rotate 90°
-        const needsRotation =
-          matchMeta &&
-          String(matchMeta.cancha) === "31" &&
-          cam.cam_id === "der";
-        applyRotation(!!needsRotation);
+        const needsRotation = needsRotationForPlayback(matchMeta, cam);
+        applyRotation(needsRotation);
 
         if (isMulti) {
           scale = 2;
