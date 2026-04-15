@@ -3,7 +3,7 @@ name: Docker Build and Push (Test)
 on:
   push:
     branches:
-      - feature/test-player-controls
+      - bugfix
 
 env:
   REGISTRY: docker.io
@@ -35,8 +35,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=test
-            type=sha,prefix=test-,suffix=,format=short
+            type=raw,value=2test
+            type=sha,prefix=2test-,suffix=,format=short
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -45,11 +45,11 @@ jobs:
           push: true
           pull: true
           no-cache: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:2test
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
       - name: Image digest
-        run: 'echo "Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test"'
+        run: 'echo "Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:2test"'
