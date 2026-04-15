@@ -65,7 +65,13 @@
         /* ── Grid ── */
         .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
 
-        .calendar-shell { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1rem; }
+        .calendar-shell { display: none; grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.95fr); gap: 1rem; align-items: start; }
+        .calendar-board, .calendar-detail {
+            background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+        }
+        .calendar-board { padding: 1rem; }
+        .calendar-detail { padding: 1rem; position: sticky; top: 84px; }
         .calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.75rem; }
         .calendar-weekday {
             text-align: center; font-size: 0.67rem; font-weight: 700; color: var(--muted);
@@ -73,27 +79,86 @@
         }
         .calendar-pad { min-height: 0; }
         .calendar-day {
-            min-height: 150px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-            border-radius: 12px; padding: 0.65rem; display: flex; flex-direction: column; gap: 0.55rem;
+            min-height: 138px; background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+            border-radius: 12px; padding: 0; display: flex; flex-direction: column;
         }
         .calendar-day.is-empty { background: transparent; }
         .calendar-day.has-matches { border-color: rgba(99,102,241,0.22); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.08); }
+        .calendar-day.is-selected { border-color: rgba(168,85,247,0.55); box-shadow: 0 0 0 1px rgba(168,85,247,0.18), 0 10px 24px rgba(99,102,241,0.18); }
+        .calendar-day-btn {
+            border: none; background: none; color: inherit; font: inherit; text-align: left; width: 100%; height: 100%;
+            padding: 0.65rem; display: flex; flex-direction: column; gap: 0.55rem; cursor: pointer;
+        }
+        .calendar-day-btn.is-disabled { cursor: default; }
         .calendar-day-head { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+        .calendar-day-head-left { display: inline-flex; align-items: center; gap: 0.35rem; }
         .calendar-day-number { font-size: 0.82rem; font-weight: 700; color: var(--muted); }
         .calendar-day.has-matches .calendar-day-number { color: var(--text); }
+        .calendar-day-dot { width: 8px; height: 8px; border-radius: 999px; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 0 0 4px rgba(99,102,241,0.12); }
         .calendar-day-count {
             font-size: 0.62rem; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12);
             padding: 0.12rem 0.38rem; border-radius: 999px;
         }
         .calendar-day-matches { display: flex; flex-direction: column; gap: 0.45rem; }
-        .calendar-match {
-            display: flex; flex-direction: column; gap: 0.2rem; padding: 0.45rem 0.55rem; border-radius: 10px;
-            text-decoration: none; background: linear-gradient(135deg, rgba(99,102,241,0.16), rgba(168,85,247,0.12));
-            border: 1px solid rgba(99,102,241,0.24); color: var(--text); transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+        .calendar-preview-line { font-size: 0.72rem; font-weight: 700; line-height: 1.25; color: var(--text); }
+        .calendar-preview-meta { font-size: 0.62rem; color: rgba(230,237,243,0.72); line-height: 1.25; }
+        .calendar-detail-empty {
+            min-height: 320px; display: flex; align-items: center; justify-content: center; text-align: center;
+            color: var(--muted); font-size: 0.88rem; padding: 1rem; line-height: 1.7;
         }
-        .calendar-match:hover { transform: translateY(-1px); border-color: rgba(168,85,247,0.45); box-shadow: 0 6px 18px rgba(99,102,241,0.12); }
-        .calendar-match-title { font-size: 0.72rem; font-weight: 700; line-height: 1.25; }
-        .calendar-match-meta, .calendar-match-footer { font-size: 0.62rem; color: rgba(230,237,243,0.72); line-height: 1.25; }
+        .calendar-detail-body { display: flex; flex-direction: column; gap: 1rem; }
+        .calendar-detail-head { display: flex; flex-direction: column; gap: 0.28rem; }
+        .calendar-detail-kicker { font-size: 0.68rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+        .calendar-detail-title { font-size: 1.05rem; font-weight: 800; color: var(--text); line-height: 1.2; }
+        .calendar-detail-subtitle { font-size: 0.76rem; color: var(--muted); }
+        .calendar-player-shell {
+            display: flex; flex-direction: column; gap: 0.7rem; padding: 0.85rem; border-radius: 14px;
+            border: 1px solid rgba(99,102,241,0.18); background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(99,102,241,0.05));
+        }
+        .calendar-player-stage {
+            position: relative; overflow: hidden; border-radius: 12px; background: #06080d;
+            border: 1px solid rgba(255,255,255,0.08); aspect-ratio: 16 / 9;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .calendar-player-placeholder {
+            padding: 1.2rem; text-align: center; color: rgba(230,237,243,0.65); font-size: 0.82rem; line-height: 1.6;
+        }
+        .calendar-video { width: 100%; height: 100%; display: block; background: #000; }
+        .calendar-player-meta { display: flex; flex-direction: column; gap: 0.2rem; }
+        .calendar-player-title { font-size: 0.86rem; font-weight: 700; color: var(--text); line-height: 1.25; }
+        .calendar-player-subtitle { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
+        .calendar-player-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+        .calendar-detail-list { display: flex; flex-direction: column; gap: 0.8rem; }
+        .calendar-detail-match {
+            border: 1px solid var(--border); border-radius: 14px; padding: 0.8rem; background: rgba(255,255,255,0.025);
+            display: flex; flex-direction: column; gap: 0.75rem;
+        }
+        .calendar-detail-match.is-selected { border-color: rgba(99,102,241,0.36); box-shadow: inset 0 0 0 1px rgba(99,102,241,0.08); }
+        .calendar-detail-match-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.7rem; }
+        .calendar-detail-match-info { display: flex; flex-direction: column; gap: 0.18rem; }
+        .calendar-detail-match-title { font-size: 0.84rem; font-weight: 700; color: var(--text); line-height: 1.25; }
+        .calendar-detail-match-meta { font-size: 0.7rem; color: var(--muted); line-height: 1.45; }
+        .calendar-detail-match-actions, .calendar-chip-row, .calendar-clip-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+        .calendar-chip {
+            padding: 0.34rem 0.62rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04); color: var(--muted); font-family: inherit; font-size: 0.68rem; font-weight: 700;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .calendar-chip:hover { color: var(--text); border-color: rgba(255,255,255,0.22); }
+        .calendar-chip.active { color: #fff; background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.48); }
+        .calendar-clips-list { display: flex; flex-direction: column; gap: 0.45rem; }
+        .calendar-clip-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.65rem; padding: 0.6rem 0.7rem;
+            border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.028);
+        }
+        .calendar-clip-row.is-active { border-color: rgba(168,85,247,0.45); background: rgba(168,85,247,0.08); }
+        .calendar-clip-main { display: flex; flex-direction: column; gap: 0.16rem; min-width: 0; }
+        .calendar-clip-name { font-size: 0.74rem; font-weight: 700; color: var(--text); line-height: 1.25; }
+        .calendar-clip-meta { font-size: 0.66rem; color: var(--muted); line-height: 1.4; }
+        .calendar-empty-note {
+            padding: 0.65rem 0.75rem; border-radius: 10px; border: 1px dashed rgba(255,255,255,0.12);
+            font-size: 0.72rem; color: var(--muted); background: rgba(255,255,255,0.015);
+        }
 
         /* ── Card ── */
         .m-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color 0.2s, box-shadow 0.2s; }
@@ -173,8 +238,11 @@
             .lib-header { padding: 0.75rem 1rem; height: auto; flex-wrap: wrap; }
             .lib-body { padding: 1rem; }
             .calendar-label { min-width: 0; text-align: left; }
-            .calendar-shell { overflow-x: auto; }
+            .calendar-shell { grid-template-columns: 1fr; }
+            .calendar-board { overflow-x: auto; }
             .calendar-grid { min-width: 840px; }
+            .calendar-detail { position: static; }
+            .calendar-clip-row { flex-direction: column; align-items: stretch; }
         }
     </style>
 </head>
@@ -226,7 +294,31 @@
             <div class="empty"><div class="icon">⏳</div>Cargando partidos...</div>
         </div>
         <div class="calendar-shell" id="calendarSection">
-            <div class="calendar-grid" id="calendarGrid"></div>
+            <div class="calendar-board">
+                <div class="calendar-grid" id="calendarGrid"></div>
+            </div>
+            <aside class="calendar-detail" id="calendarDetail">
+                <div class="calendar-detail-empty" id="calendarDetailEmpty">Seleccioná un día con partidos para ver su detalle, los clips guardados y reproducir videos sin salir del calendario.</div>
+                <div class="calendar-detail-body" id="calendarDetailBody" style="display:none">
+                    <div class="calendar-detail-head">
+                        <span class="calendar-detail-kicker">Agenda del día</span>
+                        <span class="calendar-detail-title" id="calendarDetailTitle"></span>
+                        <span class="calendar-detail-subtitle" id="calendarDetailSubtitle"></span>
+                    </div>
+                    <div class="calendar-player-shell">
+                        <div class="calendar-player-stage">
+                            <div class="calendar-player-placeholder" id="calendarPlayerPlaceholder">Elegí un partido o un clip del día para cargarlo en este reproductor.</div>
+                            <video id="calendarVideoPlayer" class="calendar-video" controls playsinline preload="metadata" style="display:none"></video>
+                        </div>
+                        <div class="calendar-player-meta">
+                            <span class="calendar-player-title" id="calendarPlayerTitle">Sin reproducción seleccionada</span>
+                            <span class="calendar-player-subtitle" id="calendarPlayerSubtitle">El estado del reproductor se actualiza con los partidos y clips cargados en la biblioteca.</span>
+                        </div>
+                        <div class="calendar-player-actions" id="calendarPlayerActions"></div>
+                    </div>
+                    <div class="calendar-detail-list" id="calendarDetailMatches"></div>
+                </div>
+            </aside>
         </div>
 
         <div id="orphanSection" style="display:none">
@@ -332,12 +424,26 @@
         const calendarLabel = document.getElementById('calendarLabel');
         const prevMonthBtn = document.getElementById('prevMonthBtn');
         const nextMonthBtn = document.getElementById('nextMonthBtn');
+        const calendarDetailEmpty = document.getElementById('calendarDetailEmpty');
+        const calendarDetailBody = document.getElementById('calendarDetailBody');
+        const calendarDetailTitle = document.getElementById('calendarDetailTitle');
+        const calendarDetailSubtitle = document.getElementById('calendarDetailSubtitle');
+        const calendarDetailMatches = document.getElementById('calendarDetailMatches');
+        const calendarVideoPlayer = document.getElementById('calendarVideoPlayer');
+        const calendarPlayerPlaceholder = document.getElementById('calendarPlayerPlaceholder');
+        const calendarPlayerTitle = document.getElementById('calendarPlayerTitle');
+        const calendarPlayerSubtitle = document.getElementById('calendarPlayerSubtitle');
+        const calendarPlayerActions = document.getElementById('calendarPlayerActions');
 
         let _currentView = 'grid';
         let _allMatches = [];
         let _clipsByMatch = {};
         let _calendarMonths = [];
         let _calendarIndex = -1;
+        let _matchesByDate = {};
+        let _selectedDateKey = '';
+        let _selectedMatchId = '';
+        let _calendarPlayback = null;
 
         const parseMatchDate = value => {
             if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null;
@@ -356,6 +462,258 @@
             if (bDate) return 1;
             return String(b.id).localeCompare(String(a.id), 'es');
         };
+        const formatLongDate = value => {
+            const date = parseMatchDate(value);
+            if (!date) return value || 'Sin fecha';
+            const label = new Intl.DateTimeFormat('es-AR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            }).format(date);
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        };
+        const getMatchTitle = match => match.title || `Partido #${match.id}`;
+        const getMatchLocation = match => {
+            if (match.complejo) return `${match.complejo}${match.cancha ? ` · Cancha ${match.cancha}` : ''}`;
+            if (match.cancha) return `Cancha ${match.cancha}`;
+            return `ID ${match.id}`;
+        };
+        const getMatchSizeLabel = match => {
+            const totalMB = match.cameras.reduce((sum, camera) => sum + camera.size_mb, 0);
+            return totalMB > 1024 ? `${(totalMB / 1024).toFixed(2)} GB` : `${totalMB.toFixed(0)} MB`;
+        };
+        const getClipsForMatch = matchId => _clipsByMatch[matchId] || [];
+        const findMatchById = matchId => _allMatches.find(match => String(match.id) === String(matchId)) || null;
+
+        function syncCalendarSelection(options = {}) {
+            const dateKeys = Object.keys(_matchesByDate).sort();
+            if (!dateKeys.length) {
+                _selectedDateKey = '';
+                _selectedMatchId = '';
+                _calendarPlayback = null;
+                return;
+            }
+
+            const visibleMonthKey = _calendarMonths[_calendarIndex] || '';
+            const visibleDates = visibleMonthKey ? dateKeys.filter(dateKey => dateKey.startsWith(visibleMonthKey)) : [];
+            if (
+                options.preferVisibleMonth &&
+                visibleDates.length &&
+                (!_selectedDateKey || !_selectedDateKey.startsWith(visibleMonthKey) || !_matchesByDate[_selectedDateKey])
+            ) {
+                _selectedDateKey = visibleDates[visibleDates.length - 1];
+            }
+
+            if (!_selectedDateKey || !_matchesByDate[_selectedDateKey]) {
+                _selectedDateKey = visibleDates[visibleDates.length - 1] || dateKeys[dateKeys.length - 1];
+            }
+
+            const dayMatches = _matchesByDate[_selectedDateKey] || [];
+            if (!_selectedMatchId || !dayMatches.some(match => String(match.id) === String(_selectedMatchId))) {
+                _selectedMatchId = dayMatches[0] ? String(dayMatches[0].id) : '';
+            }
+
+            if (_calendarPlayback) {
+                const playbackMatch = dayMatches.find(match => String(match.id) === String(_calendarPlayback.matchId));
+                if (!playbackMatch) {
+                    _calendarPlayback = null;
+                } else if (_calendarPlayback.type === 'camera') {
+                    const exists = playbackMatch.cameras.some(camera => camera.filename === _calendarPlayback.filename);
+                    if (!exists) _calendarPlayback = null;
+                } else if (_calendarPlayback.type === 'clip') {
+                    const exists = getClipsForMatch(playbackMatch.id).some(clip => clip.filename === _calendarPlayback.filename);
+                    if (!exists) _calendarPlayback = null;
+                }
+            }
+
+            if (!_calendarPlayback && dayMatches.length) {
+                const defaultMatch = dayMatches.find(match => String(match.id) === String(_selectedMatchId)) || dayMatches[0];
+                const defaultCamera = defaultMatch && defaultMatch.cameras.length ? defaultMatch.cameras[0] : null;
+                if (defaultMatch && defaultCamera) {
+                    _calendarPlayback = {
+                        type: 'camera',
+                        matchId: String(defaultMatch.id),
+                        camId: defaultCamera.cam_id || '',
+                        filename: defaultCamera.filename
+                    };
+                }
+            }
+        }
+
+        function applyCalendarPlayback(autoplay = false) {
+            if (!_calendarPlayback) {
+                calendarVideoPlayer.pause();
+                calendarVideoPlayer.removeAttribute('src');
+                calendarVideoPlayer.load();
+                calendarVideoPlayer.dataset.sourceKey = '';
+                calendarVideoPlayer.style.display = 'none';
+                calendarPlayerPlaceholder.style.display = '';
+                calendarPlayerTitle.textContent = 'Sin reproducción seleccionada';
+                calendarPlayerSubtitle.textContent = 'Elegí un partido o un clip del día para previsualizarlo acá.';
+                calendarPlayerActions.innerHTML = '';
+                return;
+            }
+
+            const match = findMatchById(_calendarPlayback.matchId);
+            if (!match) {
+                _calendarPlayback = null;
+                applyCalendarPlayback(false);
+                return;
+            }
+
+            const safeMatchId = encodeURIComponent(match.id);
+            let sourceKey = '';
+            let sourceUrl = '';
+            let playerTitle = getMatchTitle(match);
+            let playerSubtitle = `${getMatchLocation(match)} · ${match.date || `ID ${match.id}`}`;
+
+            if (_calendarPlayback.type === 'clip') {
+                const clip = getClipsForMatch(match.id).find(item => item.filename === _calendarPlayback.filename);
+                if (!clip) {
+                    _calendarPlayback = null;
+                    applyCalendarPlayback(false);
+                    return;
+                }
+                sourceKey = `clip:${match.id}:${clip.filename}`;
+                sourceUrl = `/api/clips/stream/${encodeURIComponent(clip.filename)}`;
+                playerTitle = clip.name || clip.filename;
+                playerSubtitle = `${getMatchTitle(match)}${clip.cam_id ? ` · ${CAM_LABEL[clip.cam_id] || clip.cam_id}` : ''} · ${fmt(clip.start)} → ${fmt(clip.end)}`;
+                calendarPlayerActions.innerHTML = `
+                    <a href="/player?id=${safeMatchId}&view=clips" class="btn btn-play">✂ Abrir clips</a>
+                    <a href="/player?id=${safeMatchId}" class="btn btn-ghost">▶ Partido completo</a>
+                    ${_isAdmin ? `<a href="/api/clips/download/${encodeURIComponent(clip.filename)}" download="${escapeHtml(clip.download_name || clip.filename)}" class="btn btn-ghost">⬇ Descargar</a>` : ''}`;
+            } else {
+                const camera = match.cameras.find(item => item.filename === _calendarPlayback.filename) || match.cameras[0];
+                if (!camera) {
+                    _calendarPlayback = null;
+                    applyCalendarPlayback(false);
+                    return;
+                }
+                sourceKey = `camera:${match.id}:${camera.filename}`;
+                sourceUrl = `/api/stream/${encodeURIComponent(camera.filename)}`;
+                playerTitle = getMatchTitle(match);
+                playerSubtitle = `${camera.label} · ${getMatchLocation(match)} · ${getMatchSizeLabel(match)}`;
+                calendarPlayerActions.innerHTML = `
+                    <a href="/player?id=${safeMatchId}" class="btn btn-play">▶ Abrir partido</a>
+                    ${getClipsForMatch(match.id).length ? `<a href="/player?id=${safeMatchId}&view=clips" class="btn btn-ghost">✂ Ver clips</a>` : ''}
+                    ${_isAdmin ? `<a href="/api/file_zip/${safeMatchId}" class="btn btn-ghost" download>⬇ ZIP</a>` : ''}`;
+            }
+
+            calendarPlayerTitle.textContent = playerTitle;
+            calendarPlayerSubtitle.textContent = playerSubtitle;
+            calendarPlayerPlaceholder.style.display = 'none';
+            calendarVideoPlayer.style.display = '';
+
+            if (calendarVideoPlayer.dataset.sourceKey !== sourceKey) {
+                calendarVideoPlayer.src = sourceUrl;
+                calendarVideoPlayer.dataset.sourceKey = sourceKey;
+                calendarVideoPlayer.load();
+            }
+
+            if (autoplay) {
+                calendarVideoPlayer.play().catch(() => {});
+            }
+        }
+
+        function renderCalendarDetail(autoplay = false) {
+            const dayMatches = _selectedDateKey ? (_matchesByDate[_selectedDateKey] || []) : [];
+            if (!_selectedDateKey || !dayMatches.length) {
+                calendarDetailEmpty.style.display = '';
+                calendarDetailBody.style.display = 'none';
+                _calendarPlayback = null;
+                applyCalendarPlayback(false);
+                return;
+            }
+
+            calendarDetailEmpty.style.display = 'none';
+            calendarDetailBody.style.display = '';
+            const totalClips = dayMatches.reduce((sum, match) => sum + getClipsForMatch(match.id).length, 0);
+            calendarDetailTitle.textContent = formatLongDate(_selectedDateKey);
+            calendarDetailSubtitle.textContent = `${dayMatches.length} partido${dayMatches.length === 1 ? '' : 's'}${totalClips ? ` · ${totalClips} clip${totalClips === 1 ? '' : 's'}` : ''}`;
+
+            calendarDetailMatches.innerHTML = dayMatches.map(match => {
+                const safeMatchId = encodeURIComponent(match.id);
+                const clips = getClipsForMatch(match.id);
+                const isSelectedMatch = String(match.id) === String(_selectedMatchId);
+                const cameraButtons = match.cameras.map(camera => {
+                    const active = _calendarPlayback && _calendarPlayback.type === 'camera' && String(_calendarPlayback.matchId) === String(match.id) && _calendarPlayback.filename === camera.filename;
+                    return `<button type="button" class="calendar-chip ${active ? 'active' : ''}" data-match-id="${safeMatchId}" data-cam-id="${encodeURIComponent(camera.cam_id || '')}" onclick="_calendarPlayMatch(decodeURIComponent(this.dataset.matchId),decodeURIComponent(this.dataset.camId || ''),true)">▶ ${escapeHtml(camera.label)}</button>`;
+                }).join('');
+                const clipsHtml = clips.length ? clips.map(clip => {
+                    const active = _calendarPlayback && _calendarPlayback.type === 'clip' && String(_calendarPlayback.matchId) === String(match.id) && _calendarPlayback.filename === clip.filename;
+                    return `<div class="calendar-clip-row ${active ? 'is-active' : ''}">
+                        <div class="calendar-clip-main">
+                            <span class="calendar-clip-name">✂ ${escapeHtml(clip.name || clip.filename)}</span>
+                            <span class="calendar-clip-meta">${clip.cam_id ? `${escapeHtml(CAM_LABEL[clip.cam_id] || clip.cam_id)} · ` : ''}${fmt(clip.start)} → ${fmt(clip.end)} · ${clip.size_mb} MB</span>
+                        </div>
+                        <div class="calendar-clip-actions">
+                            <button type="button" class="calendar-chip ${active ? 'active' : ''}" data-match-id="${safeMatchId}" data-filename="${encodeURIComponent(clip.filename)}" onclick="_calendarPlayClip(decodeURIComponent(this.dataset.matchId),decodeURIComponent(this.dataset.filename),true)">▶ Reproducir</button>
+                            ${_isAdmin ? `<a href="/api/clips/download/${encodeURIComponent(clip.filename)}" download="${escapeHtml(clip.download_name || clip.filename)}" class="btn btn-ghost btn-sm">⬇</a>` : ''}
+                        </div>
+                    </div>`;
+                }).join('') : '<div class="calendar-empty-note">Todavía no hay clips guardados para este partido.</div>';
+
+                return `<section class="calendar-detail-match ${isSelectedMatch ? 'is-selected' : ''}">
+                    <div class="calendar-detail-match-top">
+                        <div class="calendar-detail-match-info">
+                            <span class="calendar-detail-match-title">${escapeHtml(getMatchTitle(match))}</span>
+                            <span class="calendar-detail-match-meta">${escapeHtml(getMatchLocation(match))} · ${match.cameras.length} cám${match.cameras.length === 1 ? '' : 's'} · ${getMatchSizeLabel(match)}</span>
+                        </div>
+                        <div class="calendar-detail-match-actions">
+                            <a href="/player?id=${safeMatchId}" class="btn btn-ghost btn-sm">Abrir</a>
+                            ${clips.length ? `<a href="/player?id=${safeMatchId}&view=clips" class="btn btn-ghost btn-sm">✂ ${clips.length}</a>` : ''}
+                        </div>
+                    </div>
+                    <div class="calendar-chip-row">${cameraButtons}</div>
+                    <div class="calendar-clips-list">${clipsHtml}</div>
+                </section>`;
+            }).join('');
+
+            applyCalendarPlayback(autoplay);
+        }
+
+        function _selectCalendarDay(dateKey) {
+            if (!_matchesByDate[dateKey] || !_matchesByDate[dateKey].length) return;
+            _selectedDateKey = dateKey;
+            const dayMatches = _matchesByDate[dateKey];
+            if (!dayMatches.some(match => String(match.id) === String(_selectedMatchId))) {
+                _selectedMatchId = String(dayMatches[0].id);
+                _calendarPlayback = null;
+            }
+            syncCalendarSelection();
+            renderCalendar(_allMatches, _clipsByMatch);
+        }
+
+        function _calendarPlayMatch(matchId, camId = '', autoplay = true) {
+            const match = findMatchById(matchId);
+            if (!match || !match.cameras.length) return;
+            const camera = match.cameras.find(item => String(item.cam_id || '') === String(camId || '')) || match.cameras[0];
+            _selectedDateKey = match.date || _selectedDateKey;
+            _selectedMatchId = String(match.id);
+            _calendarPlayback = {
+                type: 'camera',
+                matchId: String(match.id),
+                camId: camera.cam_id || '',
+                filename: camera.filename
+            };
+            renderCalendarDetail(autoplay);
+        }
+
+        function _calendarPlayClip(matchId, filename, autoplay = true) {
+            const match = findMatchById(matchId);
+            if (!match) return;
+            const clip = getClipsForMatch(match.id).find(item => item.filename === filename);
+            if (!clip) return;
+            _selectedDateKey = match.date || _selectedDateKey;
+            _selectedMatchId = String(match.id);
+            _calendarPlayback = {
+                type: 'clip',
+                matchId: String(match.id),
+                filename: clip.filename
+            };
+            renderCalendarDetail(autoplay);
+        }
 
         function setLibraryView(view) {
             _currentView = view;
@@ -365,7 +723,11 @@
             calendarNav.style.display = (isCalendar && _calendarMonths.length) ? '' : 'none';
             gridViewBtn.classList.toggle('active', !isCalendar);
             calendarViewBtn.classList.toggle('active', isCalendar);
-            if (isCalendar) renderCalendar(_allMatches, _clipsByMatch);
+            if (isCalendar) renderCalendar(_allMatches, _clipsByMatch, { preferVisibleMonth: true });
+            else {
+                calendarVideoPlayer.pause();
+                renderMatches(_allMatches, _clipsByMatch);
+            }
         }
 
         function initCalendarMonths(matches) {
@@ -382,8 +744,8 @@
         }
 
         function renderLibrary() {
+            renderMatches(_allMatches, _clipsByMatch);
             if (_currentView === 'calendar') renderCalendar(_allMatches, _clipsByMatch);
-            else renderMatches(_allMatches, _clipsByMatch);
         }
 
         gridViewBtn.addEventListener('click', () => setLibraryView('grid'));
@@ -391,13 +753,13 @@
         prevMonthBtn.addEventListener('click', () => {
             if (_calendarIndex > 0) {
                 _calendarIndex -= 1;
-                renderCalendar(_allMatches, _clipsByMatch);
+                renderCalendar(_allMatches, _clipsByMatch, { preferVisibleMonth: true });
             }
         });
         nextMonthBtn.addEventListener('click', () => {
             if (_calendarIndex >= 0 && _calendarIndex < _calendarMonths.length - 1) {
                 _calendarIndex += 1;
-                renderCalendar(_allMatches, _clipsByMatch);
+                renderCalendar(_allMatches, _clipsByMatch, { preferVisibleMonth: true });
             }
         });
 
@@ -427,9 +789,14 @@
                 renderLibrary();
                 renderOrphans(orphanClips);
             } catch {
+                _matchesByDate = {};
+                _selectedDateKey = '';
+                _selectedMatchId = '';
+                _calendarPlayback = null;
                 const errorHtml = '<div class="empty"><div class="icon">⚠️</div>Error cargando la biblioteca</div>';
                 matchGrid.innerHTML = errorHtml;
                 calendarGrid.innerHTML = errorHtml;
+                renderCalendarDetail(false);
             }
         }
 
@@ -446,14 +813,19 @@
             matches.forEach(m => grid.appendChild(buildMatchCard(m, clipsByMatch[m.id] || [])));
         }
 
-        function renderCalendar(matches, clipsByMatch) {
+        function renderCalendar(matches, clipsByMatch, options = {}) {
             const datedMatches = matches.filter(match => parseMatchDate(match.date));
             if (!_calendarMonths.length || !datedMatches.length) {
+                _matchesByDate = {};
+                _selectedDateKey = '';
+                _selectedMatchId = '';
+                _calendarPlayback = null;
                 calendarLabel.textContent = 'Sin fechas disponibles';
                 prevMonthBtn.disabled = true;
                 nextMonthBtn.disabled = true;
                 calendarNav.style.display = 'none';
                 calendarGrid.innerHTML = '<div class="empty"><div class="icon">🗓️</div>No hay partidos con fecha registrada todavía.</div>';
+                renderCalendarDetail(false);
                 return;
             }
 
@@ -474,6 +846,9 @@
                 matchesByDate[match.date].push(match);
             });
 
+            _matchesByDate = matchesByDate;
+            syncCalendarSelection(options);
+
             calendarLabel.textContent = `${formatMonthLabel(monthDate)} · ${monthMatches.length} partido${monthMatches.length === 1 ? '' : 's'}`;
             prevMonthBtn.disabled = _calendarIndex <= 0;
             nextMonthBtn.disabled = _calendarIndex >= _calendarMonths.length - 1;
@@ -484,27 +859,38 @@
             for (let day = 1; day <= daysInMonth; day += 1) {
                 const dateKey = `${monthKey}-${String(day).padStart(2, '0')}`;
                 const dayMatches = matchesByDate[dateKey] || [];
+                const isSelected = dateKey === _selectedDateKey;
+                const totalClips = dayMatches.reduce((sum, match) => sum + (clipsByMatch[match.id] || []).length, 0);
+                const previewHtml = dayMatches.slice(0, 2).map(match => `<span class="calendar-preview-line">${escapeHtml(getMatchTitle(match))}</span>`).join('');
                 html += `
-                    <div class="calendar-day ${dayMatches.length ? 'has-matches' : 'is-empty'}">
-                        <div class="calendar-day-head">
-                            <span class="calendar-day-number">${day}</span>
-                            ${dayMatches.length ? `<span class="calendar-day-count">${dayMatches.length}</span>` : ''}
-                        </div>
-                        ${dayMatches.length ? `<div class="calendar-day-matches">${dayMatches.map(match => {
-                            const clipCount = (clipsByMatch[match.id] || []).length;
-                            const location = match.complejo
-                                ? `${match.complejo}${match.cancha ? ` · Cancha ${match.cancha}` : ''}`
-                                : `ID ${match.id}`;
-                            return `<a class="calendar-match" href="/player?id=${encodeURIComponent(match.id)}">
-                                <span class="calendar-match-title">${escapeHtml(match.title || `Partido #${match.id}`)}</span>
-                                <span class="calendar-match-meta">${escapeHtml(location)}</span>
-                                <span class="calendar-match-footer">${match.cameras.length} cám${match.cameras.length === 1 ? '' : 's'}${clipCount ? ` · ✂ ${clipCount}` : ''}</span>
-                            </a>`;
-                        }).join('')}</div>` : ''}
+                    <div class="calendar-day ${dayMatches.length ? 'has-matches' : 'is-empty'} ${isSelected ? 'is-selected' : ''}">
+                        ${dayMatches.length ? `
+                            <button type="button" class="calendar-day-btn" onclick="_selectCalendarDay('${dateKey}')">
+                                <div class="calendar-day-head">
+                                    <span class="calendar-day-head-left">
+                                        <span class="calendar-day-number">${day}</span>
+                                        <span class="calendar-day-dot"></span>
+                                    </span>
+                                    <span class="calendar-day-count">${dayMatches.length}</span>
+                                </div>
+                                <div class="calendar-day-matches">
+                                    ${previewHtml}
+                                    <span class="calendar-preview-meta">${totalClips ? `✂ ${totalClips} clip${totalClips === 1 ? '' : 's'}` : `${dayMatches.length} partido${dayMatches.length === 1 ? '' : 's'}`}</span>
+                                    ${dayMatches.length > 2 ? `<span class="calendar-preview-meta">+${dayMatches.length - 2} más</span>` : ''}
+                                </div>
+                            </button>
+                        ` : `
+                            <div class="calendar-day-btn is-disabled">
+                                <div class="calendar-day-head">
+                                    <span class="calendar-day-number">${day}</span>
+                                </div>
+                            </div>
+                        `}
                     </div>`;
             }
 
             calendarGrid.innerHTML = html;
+            renderCalendarDetail(false);
         }
 
         function buildMatchCard(match, clips) {
