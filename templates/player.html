@@ -305,7 +305,7 @@
         left: 0;
         right: 0;
         z-index: 20;
-        padding: 0.6rem 1rem 0.8rem;
+        padding: 0.7rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
         background: linear-gradient(
           to top,
           rgba(0, 0, 0, 0.9) 0%,
@@ -315,16 +315,27 @@
         flex-direction: column;
         gap: 0.4rem;
         opacity: 0;
-        transition: opacity 0.25s;
+        pointer-events: none;
+        transform: translateY(18px);
+        transition:
+          opacity 0.25s,
+          transform 0.25s;
       }
-      .video-wrapper:hover .ctrl-bar,
+      .video-wrapper.controls-visible .ctrl-bar,
       .ctrl-bar:focus-within {
         opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
       }
 
       .ctrl-btn.clip-btn-toggle.active {
-        color: var(--accent);
-        background: rgba(99, 102, 241, 0.12);
+        color: #fff;
+        background: linear-gradient(
+          135deg,
+          rgba(79, 70, 229, 0.98),
+          rgba(147, 51, 234, 0.98)
+        );
+        box-shadow: 0 12px 28px rgba(99, 102, 241, 0.32);
       }
 
       .progress-row {
@@ -366,27 +377,64 @@
       .btn-row {
         display: flex;
         align-items: center;
-        gap: 0.35rem;
+        gap: 0.5rem;
       }
       .ctrl-btn {
-        background: none;
-        border: none;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         color: rgba(255, 255, 255, 0.8);
         cursor: pointer;
         font-size: 1.05rem;
-        padding: 0.2rem 0.4rem;
-        border-radius: 6px;
+        padding: 0.55rem 0.75rem;
+        border-radius: 12px;
         transition:
           color 0.15s,
-          background 0.15s;
+          background 0.15s,
+          border-color 0.15s,
+          transform 0.15s;
         font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        min-height: 44px;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
       }
       .ctrl-btn:hover {
         color: #fff;
-        background: rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.14);
+        border-color: rgba(255, 255, 255, 0.16);
       }
       .ctrl-btn.play-btn {
         font-size: 1.3rem;
+        min-width: 50px;
+      }
+      .ctrl-btn.clip-btn-toggle {
+        margin-left: auto;
+        gap: 0.45rem;
+        min-width: 118px;
+        padding: 0.7rem 1.05rem;
+        border-radius: 999px;
+        border-color: transparent;
+        background: linear-gradient(
+          135deg,
+          rgba(99, 102, 241, 0.95),
+          rgba(168, 85, 247, 0.95)
+        );
+        color: #fff;
+        font-size: 0.92rem;
+        font-weight: 800;
+        box-shadow: 0 10px 24px rgba(99, 102, 241, 0.28);
+      }
+      .ctrl-btn.clip-btn-toggle:hover {
+        background: linear-gradient(
+          135deg,
+          rgba(79, 70, 229, 0.98),
+          rgba(147, 51, 234, 0.98)
+        );
+        border-color: transparent;
+        transform: translateY(-1px);
       }
 
       input[type="range"].vol-slider {
@@ -419,12 +467,62 @@
         border-radius: 5px;
       }
 
-      /* Skip buttons */
-      .skip-btn {
-        font-size: 0.82rem !important;
+      .video-skip-controls {
+        position: absolute;
+        inset: 0;
+        z-index: 22;
+        pointer-events: none;
+      }
+      .video-skip-btn {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%) scale(0.96);
+        width: 68px;
+        height: 68px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(15, 23, 42, 0.42);
+        backdrop-filter: blur(12px);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.15rem;
+        font-family: inherit;
+        cursor: pointer;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+        opacity: 0;
+        pointer-events: none;
+        transition:
+          opacity 0.25s,
+          transform 0.25s,
+          background 0.2s;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+      }
+      .video-wrapper.controls-visible .video-skip-btn {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(-50%) scale(1);
+      }
+      .video-skip-btn[data-direction="back"] {
+        left: 1rem;
+      }
+      .video-skip-btn[data-direction="forward"] {
+        right: 1rem;
+      }
+      .video-skip-btn:hover {
+        background: rgba(30, 41, 59, 0.62);
+      }
+      .video-skip-btn .skip-icon {
+        font-size: 1.25rem;
+        line-height: 1;
+      }
+      .video-skip-btn .skip-label {
+        font-size: 0.72rem;
         font-weight: 700;
-        min-width: 36px;
-        letter-spacing: -0.02em;
+        letter-spacing: 0.02em;
       }
 
       /* Reset zoom btn (in ctrl) */
@@ -484,8 +582,13 @@
       .tap-feedback {
         position: absolute;
         top: 50%;
-        transform: translateY(-50%);
-        font-size: 3rem;
+        transform: translateY(-50%) scale(0.72);
+        min-width: 88px;
+        padding: 0.75rem 0.9rem;
+        border-radius: 18px;
+        background: rgba(15, 23, 42, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(12px);
         color: rgba(255, 255, 255, 0.9);
         pointer-events: none;
         z-index: 30;
@@ -497,27 +600,32 @@
         gap: 0.3rem;
       }
       .tap-feedback.left {
-        left: 15%;
+        left: max(1rem, 12%);
       }
       .tap-feedback.right {
-        right: 15%;
+        right: max(1rem, 12%);
+      }
+      .tap-feedback .tap-icon {
+        font-size: 1.8rem;
+        line-height: 1;
       }
       .tap-feedback .tap-time {
-        font-size: 1rem;
-        font-weight: 700;
+        font-size: 0.95rem;
+        font-weight: 800;
+        letter-spacing: 0.01em;
       }
       @keyframes tapFade {
         0% {
           opacity: 0;
-          transform: translateY(-50%) scale(0.5);
+          transform: translateY(-50%) scale(0.72);
         }
-        20% {
+        18% {
           opacity: 1;
-          transform: translateY(-50%) scale(1.1);
+          transform: translateY(-50%) scale(1.06);
         }
         100% {
           opacity: 0;
-          transform: translateY(-50%) scale(1);
+          transform: translateY(-58%) scale(1);
         }
       }
 
@@ -536,7 +644,21 @@
         color: rgba(255, 255, 255, 0.8);
         border-radius: 7px;
         cursor: pointer;
-        display: none;
+        display: block;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition:
+          opacity 0.2s,
+          transform 0.2s,
+          visibility 0.2s;
+      }
+      .video-wrapper.controls-visible .zoom-reset-corner.zoom-active {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
       }
 
       /* Clip panel */
@@ -635,6 +757,56 @@
         white-space: nowrap;
       }
       .clip-spacer { flex: 1; }
+
+      @media (max-width: 720px) {
+        .ctrl-bar {
+          padding: 0.65rem 0.75rem calc(1rem + env(safe-area-inset-bottom, 0px));
+          gap: 0.55rem;
+        }
+        .progress-row {
+          gap: 0.45rem;
+        }
+        .time-str {
+          min-width: 78px;
+          font-size: 0.68rem;
+        }
+        .btn-row {
+          flex-wrap: wrap;
+          gap: 0.45rem;
+        }
+        input[type="range"].vol-slider {
+          display: none;
+        }
+        .spacer {
+          display: none;
+        }
+        .ctrl-btn.clip-btn-toggle {
+          flex: 1 1 120px;
+          min-width: 0;
+          margin-left: 0;
+          order: 3;
+        }
+        .video-skip-btn {
+          width: 62px;
+          height: 62px;
+          top: 48%;
+        }
+        .video-skip-btn[data-direction="back"] {
+          left: 0.75rem;
+        }
+        .video-skip-btn[data-direction="forward"] {
+          right: 0.75rem;
+        }
+        .tap-feedback.left {
+          left: 0.75rem;
+        }
+        .tap-feedback.right {
+          right: 0.75rem;
+        }
+        .clip-panel {
+          padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+        }
+      }
 
       /* Rotated video: Cancha 31 + Camera 3 */
       .video-rotated-90 {
@@ -824,7 +996,7 @@
 
     <!-- ═══ PLAYER VIEW ═══ -->
     <div id="playerView">
-      <div class="video-wrapper" id="videoWrapper">
+      <div class="video-wrapper controls-visible" id="videoWrapper">
         <div class="zoom-wrap" id="zoomWrap">
           <video
             id="videoPlayer"
@@ -834,6 +1006,16 @@
             muted
           ></video>
           <div class="drag-overlay" id="dragOverlay"></div>
+        </div>
+        <div class="video-skip-controls">
+          <button class="video-skip-btn" id="skipBackBtn" data-direction="back" title="Retroceder 5 segundos" aria-label="Retroceder 5 segundos">
+            <span class="skip-icon">⏪</span>
+            <span class="skip-label">5s</span>
+          </button>
+          <button class="video-skip-btn" id="skipFwdBtn" data-direction="forward" title="Adelantar 5 segundos" aria-label="Adelantar 5 segundos">
+            <span class="skip-icon">⏩</span>
+            <span class="skip-label">5s</span>
+          </button>
         </div>
 
         <!-- Floating controls -->
@@ -855,8 +1037,6 @@
           </div>
           <div class="btn-row">
             <button class="ctrl-btn play-btn" id="playBtn">▶</button>
-            <button class="ctrl-btn skip-btn" id="skipBackBtn" title="Retroceder 5 segundos">«5s</button>
-            <button class="ctrl-btn skip-btn" id="skipFwdBtn" title="Adelantar 5 segundos">5s»</button>
             <button class="ctrl-btn" id="muteBtn">🔊</button>
             <input
               type="range"
@@ -889,7 +1069,7 @@
             >
               ✕ zoom
             </button>
-            <button class="ctrl-btn clip-btn-toggle admin-only" id="clipToggleBtn" title="Grabar clip">✂</button>
+            <button class="ctrl-btn clip-btn-toggle admin-only" id="clipToggleBtn" title="Grabar clip">✂ <span class="clip-btn-label">Clips</span></button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
@@ -936,6 +1116,7 @@
       const playerView = document.getElementById("playerView");
       const matchGrid = document.getElementById("matchGrid");
 
+      const videoWrapper = document.getElementById("videoWrapper");
       const videoPlayer = document.getElementById("videoPlayer");
       const zoomWrap = document.getElementById("zoomWrap");
       const dragOverlay = document.getElementById("dragOverlay");
@@ -1015,7 +1196,7 @@
           : "";
         zoomBadge.style.display = z ? "" : "none";
         resetZBtn.style.display = z ? "" : "none";
-        zoomCorner.style.display = z ? "" : "none";
+        zoomCorner.classList.toggle("zoom-active", z);
         if (z) zoomBadge.textContent = scale.toFixed(1) + "×";
       }
       function setZ(ns, cx = 0, cy = 0) {
@@ -1050,6 +1231,24 @@
         },
         { passive: false },
       );
+      videoWrapper.addEventListener("pointerdown", (e) => {
+        if (e.pointerType === "touch") return;
+        showControls();
+      });
+      videoWrapper.addEventListener("mousemove", () => {
+        showControls();
+      });
+      videoWrapper.addEventListener("mouseleave", () => {
+        scheduleControlsHide(300);
+      });
+      ctrlBar.addEventListener("focusin", () => {
+        showControls({ persist: true });
+      });
+      ctrlBar.addEventListener("focusout", () => {
+        setTimeout(() => {
+          scheduleControlsHide();
+        }, 0);
+      });
 
       dragOverlay.addEventListener("pointerdown", (e) => {
         if (e.button !== 0) return;
@@ -1099,15 +1298,93 @@
           .replace(/\"/g, "&quot;")
           .replace(/'/g, "&#39;");
 
+      const SKIP_SECONDS = 5;
+      const DOUBLE_TAP_DELAY = 280;
+      const CONTROLS_HIDE_DELAY = 2200;
+      let controlsHideTimer = null;
+
+      function shouldKeepControlsVisible() {
+        return (
+          videoPlayer.paused ||
+          speedMenu.classList.contains("visible") ||
+          clipPanel.classList.contains("visible") ||
+          ctrlBar.contains(document.activeElement)
+        );
+      }
+
+      function hideControls() {
+        clearTimeout(controlsHideTimer);
+        if (shouldKeepControlsVisible()) return;
+        videoWrapper.classList.remove("controls-visible");
+      }
+
+      function scheduleControlsHide(delay = CONTROLS_HIDE_DELAY) {
+        clearTimeout(controlsHideTimer);
+        if (shouldKeepControlsVisible()) return;
+        controlsHideTimer = setTimeout(() => {
+          if (!shouldKeepControlsVisible()) {
+            videoWrapper.classList.remove("controls-visible");
+          }
+        }, delay);
+      }
+
+      function showControls({ persist = false } = {}) {
+        videoWrapper.classList.add("controls-visible");
+        if (persist) {
+          clearTimeout(controlsHideTimer);
+          return;
+        }
+        scheduleControlsHide();
+      }
+
+      function toggleControls(force) {
+        const shouldShow =
+          typeof force === "boolean"
+            ? force
+            : !videoWrapper.classList.contains("controls-visible");
+        if (shouldShow) showControls();
+        else hideControls();
+      }
+
+      function showTapFeedback(side, seconds) {
+        videoWrapper.querySelectorAll(".tap-feedback").forEach((node) => node.remove());
+        const feedback = document.createElement("div");
+        const amount = Math.abs(seconds);
+        feedback.className = `tap-feedback ${side}`;
+        feedback.innerHTML = `
+        <div class="tap-icon">${side === "left" ? "⏪" : "⏩"}</div>
+        <div class="tap-time">${seconds > 0 ? "+" : "-"}${amount}s</div>
+    `;
+        videoWrapper.appendChild(feedback);
+        setTimeout(() => feedback.remove(), 600);
+      }
+
+      function skipPlayback(seconds) {
+        const duration = Number.isFinite(videoPlayer.duration)
+          ? videoPlayer.duration
+          : Infinity;
+        videoPlayer.currentTime = Math.min(
+          duration,
+          Math.max(0, videoPlayer.currentTime + seconds),
+        );
+        showTapFeedback(seconds < 0 ? "left" : "right", seconds);
+        showControls();
+      }
+
+      function getTapRegion(clientX) {
+        const rect = zoomWrap.getBoundingClientRect();
+        const offsetX = clientX - rect.left;
+        if (offsetX <= rect.width / 3) return "left";
+        if (offsetX >= (rect.width * 2) / 3) return "right";
+        return "center";
+      }
+
       // ── skip buttons ─────────────────────────────────────────────
       skipBackBtn.addEventListener("click", () => {
-        videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 5);
+        skipPlayback(-SKIP_SECONDS);
       });
       skipFwdBtn.addEventListener("click", () => {
-        videoPlayer.currentTime = Math.min(
-          videoPlayer.duration || 0,
-          videoPlayer.currentTime + 5
-        );
+        skipPlayback(SKIP_SECONDS);
       });
 
       // ── admin state ──────────────────────────────────────────────
@@ -1144,6 +1421,9 @@
         e.stopPropagation();
         const visible = clipPanel.classList.toggle("visible");
         clipToggleBtn.classList.toggle("active", visible);
+        clipToggleBtn.setAttribute("aria-pressed", visible ? "true" : "false");
+        showControls({ persist: visible });
+        if (!visible) scheduleControlsHide();
       });
 
       clipInBtn.addEventListener("click", () => {
@@ -1273,12 +1553,15 @@
       });
       videoPlayer.addEventListener("play", () => {
         playBtn.textContent = "⏸";
+        showControls();
       });
       videoPlayer.addEventListener("pause", () => {
         playBtn.textContent = "▶";
+        showControls({ persist: true });
       });
       videoPlayer.addEventListener("ended", () => {
         playBtn.textContent = "↺";
+        showControls({ persist: true });
       });
       videoPlayer.addEventListener("volumechange", () => {
         muteBtn.textContent = videoPlayer.muted ? "🔇" : "🔊";
@@ -1291,34 +1574,46 @@
           videoPlayer.play();
         } else if (videoPlayer.paused) videoPlayer.play();
         else videoPlayer.pause();
+        showControls();
       });
-      scrubber.addEventListener("mousedown", () => (isScrubbing = true));
+      scrubber.addEventListener("pointerdown", () => {
+        isScrubbing = true;
+        showControls({ persist: true });
+      });
       scrubber.addEventListener("input", () => {
         if (videoPlayer.duration) {
           videoPlayer.currentTime =
             (scrubber.value / 1000) * videoPlayer.duration;
           timeStr.textContent = `${fmt(videoPlayer.currentTime)} / ${fmt(videoPlayer.duration)}`;
         }
+        showControls({ persist: true });
       });
-      scrubber.addEventListener("mouseup", () => (isScrubbing = false));
+      scrubber.addEventListener("pointerup", () => {
+        isScrubbing = false;
+        showControls();
+      });
+      scrubber.addEventListener("pointercancel", () => {
+        isScrubbing = false;
+        showControls();
+      });
       volSlider.addEventListener("input", () => {
         videoPlayer.volume = volSlider.value;
         videoPlayer.muted = volSlider.value == 0;
+        showControls();
       });
       muteBtn.addEventListener("click", () => {
         videoPlayer.muted = !videoPlayer.muted;
         if (!videoPlayer.muted) volSlider.value = videoPlayer.volume || 0.8;
+        showControls();
       });
       fsBtn.addEventListener("click", () => {
         if (document.fullscreenElement) document.exitFullscreen();
-        else
-          document
-            .getElementById("videoWrapper")
-            .requestFullscreen()
-            .catch(() => {});
+        else videoWrapper.requestFullscreen().catch(() => {});
+        showControls();
       });
       document.addEventListener("fullscreenchange", () => {
         fsBtn.textContent = document.fullscreenElement ? "✕" : "⛶";
+        showControls();
       });
       document.addEventListener("keydown", (e) => {
         if (e.target.tagName === "INPUT") return;
@@ -1328,17 +1623,20 @@
         }
         if (e.code === "KeyF") fsBtn.click();
         if (e.code === "Escape" && scale > 1) resetZ();
+        showControls();
       });
 
       // ── playback speed ───────────────────────────────────────────
       speedBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         speedMenu.classList.toggle("visible");
+        showControls({ persist: speedMenu.classList.contains("visible") });
       });
 
       document.addEventListener("click", (e) => {
         if (!speedBtn.contains(e.target) && !speedMenu.contains(e.target)) {
           speedMenu.classList.remove("visible");
+          scheduleControlsHide();
         }
       });
 
@@ -1353,57 +1651,48 @@
             .forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
           speedMenu.classList.remove("visible");
+          showControls();
         });
       });
 
       // ── double-tap gestures (YouTube style) ──────────────────────
       let lastTapTime = 0;
-      let tapTimer = null;
+      let lastTapRegion = "";
 
-      function showTapFeedback(side, seconds) {
-        const existing = document.querySelector(".tap-feedback");
-        if (existing) existing.remove();
+      zoomWrap.addEventListener("pointerup", (e) => {
+        if (e.pointerType !== "touch" || scale > 1.01 || activeTouches.size > 1) return;
 
-        const feedback = document.createElement("div");
-        feedback.className = `tap-feedback ${side}`;
-        feedback.innerHTML = `
-        <div style="font-size:3.5rem;">${side === "left" ? "⏪" : "⏩"}</div>
-        <div class="tap-time">${seconds} segundos</div>
-    `;
-        document.getElementById("videoWrapper").appendChild(feedback);
-
-        setTimeout(() => feedback.remove(), 600);
-      }
-
-      zoomWrap.addEventListener("click", (e) => {
-        if (scale > 1.01) return;
-
+        const region = getTapRegion(e.clientX);
         const now = Date.now();
-        const rect = zoomWrap.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        const halfWidth = rect.width / 2;
 
-        if (now - lastTapTime < 300) {
-          clearTimeout(tapTimer);
-
-          if (clickX < halfWidth) {
-            videoPlayer.currentTime = Math.max(0, videoPlayer.currentTime - 10);
-            showTapFeedback("left", 10);
-          } else {
-            videoPlayer.currentTime = Math.min(
-              videoPlayer.duration,
-              videoPlayer.currentTime + 10,
-            );
-            showTapFeedback("right", 10);
-          }
-
+        if (
+          region !== "center" &&
+          now - lastTapTime < DOUBLE_TAP_DELAY &&
+          lastTapRegion === region
+        ) {
           lastTapTime = 0;
-        } else {
-          lastTapTime = now;
-          tapTimer = setTimeout(() => {
-            lastTapTime = 0;
-          }, 300);
+          lastTapRegion = "";
+          skipPlayback(region === "left" ? -SKIP_SECONDS : SKIP_SECONDS);
+          return;
         }
+
+        lastTapTime = now;
+        lastTapRegion = region;
+
+        if (region === "center") {
+          toggleControls();
+          lastTapTime = 0;
+          lastTapRegion = "";
+          return;
+        }
+
+        showControls();
+        setTimeout(() => {
+          if (Date.now() - lastTapTime >= DOUBLE_TAP_DELAY) {
+            lastTapTime = 0;
+            lastTapRegion = "";
+          }
+        }, DOUBLE_TAP_DELAY);
       });
 
       // ── pinch-to-zoom (mobile) ───────────────────────────────────
@@ -1525,6 +1814,7 @@
           },
           { once: true },
         );
+        showControls({ persist: true });
       }
 
       // ── camera tabs ──────────────────────────────────────────────
