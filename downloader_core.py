@@ -3,11 +3,17 @@ import threading
 import os
 import subprocess
 import asyncio
+import ipaddress
 import aiohttp
 import aiofiles
+import json
+import re
+import sys
+import tempfile
 import zipfile
 import logging
 import shutil
+from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from filelock import FileLock
 
@@ -23,8 +29,9 @@ download_status_lock = threading.Lock()
 # Cleanup old status entries after 24 hours
 MAX_STATUS_AGE_HOURS = 24
 
-DOWNLOAD_DIR = "downloads"
-TEMP_DIR = "temp"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
+TEMP_DIR = os.path.join(BASE_DIR, "temp")
 
 # All possible cameras in order
 ALL_CAMERAS = [
@@ -46,6 +53,62 @@ def _build_playlist_url(beelup_id, camara=""):
 
 def _status_key(beelup_id, camara=""):
     return f"{beelup_id}|{camara}" if camara else beelup_id
+
+def _write_json_atomic(filepath, data):
+    directory = os.path.dirname(filepath) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=f".{os.path.basename(filepath)}.", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp_path, filepath)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+def _is_public_http_url(url, allowed_hosts=None):
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if parsed.username or parsed.password or not parsed.hostname:
+        return False
+    hostname = parsed.hostname.lower()
+    if allowed_hosts is not None:
+        normalized_hosts = {host.lower() for host in allowed_hosts}
+        if hostname not in normalized_hosts and not any(hostname.endswith(f".{host}") for host in normalized_hosts):
+            return False
+    if hostname == "localhost" or hostname.endswith(".local"):
+        return False
+    try:
+        host_ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        return True
+    return not (
+        host_ip.is_loopback
+        or host_ip.is_private
+        or host_ip.is_link_local
+        or host_ip.is_multicast
+        or host_ip.is_reserved
+        or host_ip.is_unspecified
+    )
+
+def _segment_temp_path(key, index):
+    return os.path.join(TEMP_DIR, f"{key.replace('|', '_')}_{index}.ts")
+
+def _remove_file(path):
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError as e:
+        logger.warning(f"Could not remove file {path}: {e}")
+
+def _cleanup_temp_files(paths):
+    for path in paths:
+        _remove_file(path)
+        _remove_file(f"{path}.part")
 
 def _cleanup_old_status():
     """Remove old completed/error status entries to prevent memory leak."""
@@ -134,8 +197,11 @@ def _run_all_worker(beelup_id, cameras):
         loop.run_until_complete(_run_all_worker_async(beelup_id, cameras))
     except Exception as e:
         key = _status_key(beelup_id, "all")
-        download_status[key]["status"] = "error"
-        download_status[key]["error"] = str(e)
+        with download_status_lock:
+            entry = download_status.setdefault(key, {})
+            entry["status"] = "error"
+            entry["error"] = str(e)
+            entry["timestamp"] = datetime.now()
     finally:
         loop.close()
 
@@ -243,29 +309,46 @@ def _run_async_worker(beelup_id, camara=""):
         loop.run_until_complete(_download_video_worker_async(beelup_id, camara))
     except Exception as e:
         key = _status_key(beelup_id, camara)
-        download_status[key]["status"] = "error"
-        download_status[key]["error"] = str(e)
+        with download_status_lock:
+            entry = download_status.setdefault(key, {})
+            entry["status"] = "error"
+            entry["error"] = str(e)
+            entry["timestamp"] = datetime.now()
     finally:
         loop.close()
 
 async def _download_segment_async(session, url, index, key, semaphore):
-    temp_file = os.path.join(TEMP_DIR, f"{key.replace('|','_')}_{index}.ts")
+    temp_file = _segment_temp_path(key, index)
+    partial_file = f"{temp_file}.part"
 
     async with semaphore:
         for attempt in range(5):
             try:
+                if not _is_public_http_url(url):
+                    raise Exception(f"URL de segmento inválida: {url}")
+                _remove_file(temp_file)
+                _remove_file(partial_file)
                 async with session.get(url, timeout=30) as r:
+                    if not _is_public_http_url(str(r.url)):
+                        raise Exception(f"Redirección de segmento no permitida: {r.url}")
                     if r.status == 200:
                         # Validate Content-Type
                         content_type = r.headers.get('Content-Type', '').lower()
                         if content_type and 'text/html' in content_type:
                             raise Exception(f"Segmento {index} retornó HTML en vez de video")
+                        content_length = r.headers.get("Content-Length", "").strip()
+                        expected_size = int(content_length) if content_length.isdigit() else None
+                        written_bytes = 0
                         
-                        async with aiofiles.open(temp_file, 'wb') as f:
+                        async with aiofiles.open(partial_file, 'wb') as f:
                             async for chunk in r.content.iter_chunked(65536):
+                                written_bytes += len(chunk)
                                 await f.write(chunk)
+                        if expected_size is not None and written_bytes != expected_size:
+                            raise Exception(f"Segmento {index} incompleto: {written_bytes}/{expected_size} bytes")
                         # Validate segment has actual content
-                        if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
+                        if os.path.exists(partial_file) and os.path.getsize(partial_file) > 0:
+                            os.replace(partial_file, temp_file)
                             return index, temp_file
                         else:
                             raise Exception(f"Segmento {index} descargado está vacío")
@@ -274,24 +357,32 @@ async def _download_segment_async(session, url, index, key, semaphore):
                     else:
                         await asyncio.sleep(2 * (attempt + 1))
             except asyncio.TimeoutError:
+                _remove_file(partial_file)
                 await asyncio.sleep(2 * (attempt + 1))
             except Exception as e:
+                _remove_file(partial_file)
                 if attempt < 4:
                     await asyncio.sleep(2 * (attempt + 1))
                 else:
                     raise Exception(f"Error en segmento {index} luego de 5 intentos: {e}")
 
+        _remove_file(partial_file)
         raise Exception(f"No se pudo descargar el segmento {index} luego de múltiples intentos")
 
 async def _download_video_worker_async(beelup_id, camara=""):
     key = _status_key(beelup_id, camara)
+    temp_files_ordered = []
     try:
         playlist_url = _build_playlist_url(beelup_id, camara)
+        if not _is_public_http_url(playlist_url, allowed_hosts={"beelup.com"}):
+            raise Exception("URL de playlist inválida")
 
         # Step 1: Fetch metadata
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(playlist_url, timeout=10) as json_r:
+                    if not _is_public_http_url(str(json_r.url), allowed_hosts={"beelup.com"}):
+                        raise Exception("Redirección de playlist no permitida")
                     if json_r.status != 200:
                         raise Exception("No se pudo obtener la información de Beelup. Verifica el ID.")
                     segment_list = await json_r.json(content_type=None)
@@ -313,11 +404,14 @@ async def _download_video_worker_async(beelup_id, camara=""):
         match_title = ""
         try:
             date_url = f"https://beelup.com/partido?id={beelup_id}"
+            if not _is_public_http_url(date_url, allowed_hosts={"beelup.com"}):
+                raise Exception("URL de metadata inválida")
             async with aiohttp.ClientSession() as session_date:
                 async with session_date.get(date_url, timeout=10) as r_date:
+                    if not _is_public_http_url(str(r_date.url), allowed_hosts={"beelup.com"}):
+                        raise Exception("Redirección de metadata no permitida")
                     if r_date.status == 200:
                         html = await r_date.text()
-                        import re
                         m = re.search(r"var inicio_video = '(\d{4}-\d{2}-\d{2})", html)
                         if m:
                             date_str = m.group(1)
@@ -327,7 +421,6 @@ async def _download_video_worker_async(beelup_id, camara=""):
                         if m_title:
                             match_title = m_title.group(1).replace(" | Beelup", "").strip()
                             # Save title, complejo and cancha to metadata JSON with file locking
-                            import json
                             meta_file = os.path.join(DOWNLOAD_DIR, "metadata.json")
                             lock_file = meta_file + ".lock"
                             
@@ -337,18 +430,17 @@ async def _download_video_worker_async(beelup_id, camara=""):
                                     try:
                                         with open(meta_file, "r", encoding="utf-8") as f:
                                             meta_data = json.load(f)
-                                    except:
-                                        pass
+                                    except Exception:
+                                        meta_data = {}
                                 if beelup_id not in meta_data or not isinstance(meta_data[beelup_id], dict):
                                     meta_data[beelup_id] = {}
                                 meta_data[beelup_id]["title"]    = match_title
                                 meta_data[beelup_id]["complejo"] = playlist_complejo
                                 meta_data[beelup_id]["cancha"]   = playlist_cancha
-                                with open(meta_file, "w", encoding="utf-8") as f:
-                                    json.dump(meta_data, f, ensure_ascii=False, indent=2)
+                                _write_json_atomic(meta_file, meta_data)
 
         except Exception as e:
-            print("Error fetching match date/title:", e)
+            logger.warning(f"Error fetching match date/title for {beelup_id}: {e}")
 
         # Build output filenames — include camera suffix when relevant
         cam_suffix = f"_{camara}" if camara else ""
@@ -359,15 +451,18 @@ async def _download_video_worker_async(beelup_id, camara=""):
 
         downloaded_segments = 0
         temp_files_ordered = [None] * segment_cnt
+        expected_temp_files = [_segment_temp_path(key, i) for i in range(segment_cnt)]
 
         # Max 8 concurrent downloads — more causes Beelup to throttle/cut response early
         semaphore = asyncio.Semaphore(8)
 
         async with aiohttp.ClientSession() as session:
-            tasks = [
-                _download_segment_async(session, v["url"], i, key, semaphore)
-                for i, v in enumerate(segment_list["segmentos"])
-            ]
+            tasks = []
+            for i, v in enumerate(segment_list["segmentos"]):
+                segment_url = v.get("url", "") if isinstance(v, dict) else ""
+                if not _is_public_http_url(segment_url):
+                    raise Exception(f"URL de segmento inválida en índice {i}")
+                tasks.append(_download_segment_async(session, segment_url, i, key, semaphore))
 
             for f in asyncio.as_completed(tasks):
                 index, temp_file = await f
@@ -392,6 +487,8 @@ async def _download_video_worker_async(beelup_id, camara=""):
                         logger.warning(f"Could not remove temp file {temp_file}: {e}")
                 else:
                     raise Exception(f"Falta el archivo temporal {temp_file} durante el ensamblaje")
+
+        _cleanup_temp_files(expected_temp_files)
 
         final_file = ts_output_file
 
@@ -423,7 +520,6 @@ async def _download_video_worker_async(beelup_id, camara=""):
                     ]
                 # Run ffmpeg with low priority to avoid crushing the system.
                 # On Windows use BELOW_NORMAL_PRIORITY_CLASS; on Linux/Docker use nice.
-                import sys
                 popen_kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 if sys.platform == "win32":
                     popen_kwargs["creationflags"] = subprocess.BELOW_NORMAL_PRIORITY_CLASS
@@ -436,11 +532,11 @@ async def _download_video_worker_async(beelup_id, camara=""):
                     final_file = mp4_output_file
                 else:
                     err_msg = stderr_out.decode(errors='ignore')[-500:] if stderr_out else "sin detalles"
-                    print(f"ffmpeg terminó con código {proc.returncode}: {err_msg}")
+                    logger.warning(f"ffmpeg terminó con código {proc.returncode}: {err_msg}")
                     if os.path.exists(mp4_output_file):
                         os.remove(mp4_output_file)
             except Exception as e:
-                print(f"Error remuxeando con ffmpeg: {e}")
+                logger.warning(f"Error remuxeando con ffmpeg: {e}")
                 if os.path.exists(mp4_output_file):
                     os.remove(mp4_output_file)
 
@@ -453,6 +549,8 @@ async def _download_video_worker_async(beelup_id, camara=""):
 
     except Exception as e:
         logger.error(f"Download error for {key}: {e}")
+        if temp_files_ordered:
+            _cleanup_temp_files([temp_file for temp_file in temp_files_ordered if temp_file])
         with download_status_lock:
             download_status[key]["status"] = "error"
             download_status[key]["error"] = str(e)

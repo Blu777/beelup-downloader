@@ -8,8 +8,10 @@ distribuida en múltiples archivos check_*.py, aplicando DRY y mejores práctica
 import json
 import re
 import time
+import ipaddress
 import urllib.request
 import urllib.error
+from urllib.parse import urlparse
 from typing import Any, Optional
 from dataclasses import dataclass
 
@@ -59,6 +61,35 @@ class HTTPClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.backoff_factor = backoff_factor
+
+    def _is_allowed_url(self, url: str) -> bool:
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return False
+
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        if parsed.username or parsed.password or not parsed.hostname:
+            return False
+
+        hostname = parsed.hostname.lower()
+        if hostname == "localhost" or hostname.endswith(".local"):
+            return False
+
+        try:
+            host_ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            return True
+
+        return not (
+            host_ip.is_loopback
+            or host_ip.is_private
+            or host_ip.is_link_local
+            or host_ip.is_multicast
+            or host_ip.is_reserved
+            or host_ip.is_unspecified
+        )
     
     def fetch(
         self,
@@ -81,6 +112,15 @@ class HTTPClient:
         request_headers = {"User-Agent": self.user_agent}
         if headers:
             request_headers.update(headers)
+
+        if not self._is_allowed_url(url):
+            return HTTPResponse(
+                status_code=0,
+                content="",
+                url=url,
+                headers={},
+                error="URL is not allowed",
+            )
         
         last_error: Optional[str] = None
         

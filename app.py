@@ -3,17 +3,21 @@ import os
 import re
 import hmac
 import hashlib
+import secrets
 import json
 import math
 import subprocess
 import sys
 import time
 import uuid
+from urllib.parse import parse_qs, urlparse
 from threading import Lock
 import downloader_core
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY") or hashlib.sha256(f"bdl|{os.environ.get('ADMIN_PIN', '')}|{os.path.realpath(__file__)}".encode()).hexdigest()
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
 
 @app.after_request
 def no_cache(response):
@@ -61,6 +65,8 @@ def _client_ip() -> str:
 def _is_secure_request() -> bool:
     if request.is_secure:
         return True
+    if not _TRUST_PROXY_HEADERS:
+        return False
     forwarded_proto = request.headers.get("X-Forwarded-Proto", "")
     return forwarded_proto.split(",")[0].strip().lower() == "https"
 
@@ -249,10 +255,26 @@ def _update_json_dict(filepath: str, mutate) -> None:
 def _extract_beelup_id(raw: str) -> str | None:
     """Extract and validate a Beelup match ID from either a bare ID or a URL."""
     raw = raw.strip()
-    if "beelup.com" in raw:
-        m = re.search(r"id=(\w+)", raw)
-        return m.group(1) if m else None
-    return _safe_id(raw)
+    safe_raw = _safe_id(raw)
+    if safe_raw:
+        return safe_raw
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        return None
+    hostname = (parsed.hostname or "").lower()
+    if not hostname:
+        return None
+    if hostname != "beelup.com" and hostname != "www.beelup.com" and not hostname.endswith(".beelup.com"):
+        return None
+    query_id = parse_qs(parsed.query).get("id", [""])[0]
+    safe_query_id = _safe_id(query_id)
+    if safe_query_id:
+        return safe_query_id
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if not path_parts:
+        return None
+    return _safe_id(path_parts[-1])
 
 VERSION = "2.1.2"
 
@@ -440,7 +462,7 @@ def start_download_all():
     """Start downloading all cameras for a given match, then zip them."""
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     raw_input = data.get("url_or_id", "").strip()
     cameras   = data.get("cameras", [])
 
@@ -456,6 +478,8 @@ def start_download_all():
     
     # Validate camera data structure
     valid_cam_ids = {"central", "izq", "der"}
+    normalized_cameras = []
+    seen_cam_ids = set()
     for cam in cameras:
         if not isinstance(cam, dict):
             return jsonify({"error": "Datos de cámara inválidos"}), 400
@@ -464,9 +488,16 @@ def start_download_all():
             return jsonify({"error": f"ID de cámara inválido: {cam_id}"}), 400
         if "label" not in cam:
             return jsonify({"error": "Falta etiqueta de cámara"}), 400
+        if cam_id in seen_cam_ids:
+            continue
+        seen_cam_ids.add(cam_id)
+        normalized_cameras.append({"id": cam_id, "label": _CAM_LABELS[cam_id]})
+
+    if not normalized_cameras:
+        return jsonify({"error": "No se recibieron cámaras válidas"}), 400
 
     try:
-        downloader_core.start_download_all(beelup_id, cameras)
+        downloader_core.start_download_all(beelup_id, normalized_cameras)
         return jsonify({"message": "Descarga de todas las cámaras iniciada", "id": beelup_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -481,6 +512,8 @@ def get_progress_all(beelup_id):
 @app.route("/api/clip/<path:filename>", methods=["POST"])
 def download_clip(filename):
     """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
+    if not _is_admin():
+        return jsonify({"error": "No autorizado"}), 401
     if not _consume_rate_limit("clip", 6, 60):
         return jsonify({"error": "Demasiados clips solicitados. Espera un minuto e intenta otra vez."}), 429
     data = request.get_json(silent=True) or {}
@@ -537,11 +570,19 @@ def download_clip(filename):
         cmd = ["nice", "-n", "10"] + cmd
 
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=600)
     except FileNotFoundError:
+        if os.path.exists(out_path):
+            os.remove(out_path)
         return jsonify({"error": "ffmpeg no está instalado en el servidor"}), 500
+    except subprocess.TimeoutExpired:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+        return jsonify({"error": "El servidor tardó demasiado en generar el clip"}), 504
 
     if proc.returncode != 0 or not os.path.exists(out_path):
+        if os.path.exists(out_path):
+            os.remove(out_path)
         return jsonify({"error": "Error al generar el clip"}), 500
 
     clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
@@ -749,7 +790,7 @@ def download_zip(beelup_id):
 def start_download():
     if not _is_admin():
         return jsonify({"error": "No autorizado"}), 401
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     raw_input = data.get("url_or_id", "").strip()
     camara    = data.get("camara", "").strip()
 
