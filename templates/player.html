@@ -1069,7 +1069,7 @@
             >
               ✕ zoom
             </button>
-            <button class="ctrl-btn clip-btn-toggle admin-only" id="clipToggleBtn" title="Grabar clip">✂ <span class="clip-btn-label">Clips</span></button>
+            <button class="ctrl-btn clip-btn-toggle" id="clipToggleBtn" title="Grabar clip">✂ <span class="clip-btn-label">Clips</span></button>
             <button class="ctrl-btn" id="fsBtn">⛶</button>
           </div>
         </div>
@@ -1280,6 +1280,69 @@
       resetZBtn.addEventListener("click", resetZ);
       zoomCorner.addEventListener("click", resetZ);
 
+      dragOverlay.addEventListener("touchstart", (e) => {
+        if (scale <= 1.01 || e.touches.length !== 1 || Date.now() < zoomTapBlockedUntil) {
+          zoomTapEligible = false;
+          if (e.touches.length !== 1) zoomTapBlockedUntil = Date.now() + 180;
+          return;
+        }
+        const touch = e.touches[0];
+        zoomTapEligible = true;
+        zoomTapStart = {
+          identifier: touch.identifier,
+          x: touch.clientX,
+          y: touch.clientY,
+          time: Date.now(),
+        };
+        zoomTapMoved = false;
+      }, { passive: true });
+      dragOverlay.addEventListener("touchmove", (e) => {
+        if (!zoomTapEligible || !zoomTapStart) return;
+        const touch = Array.from(e.touches).find(
+          (item) => item.identifier === zoomTapStart.identifier,
+        );
+        if (!touch) {
+          zoomTapEligible = false;
+          zoomTapBlockedUntil = Date.now() + 180;
+          return;
+        }
+        const moveX = touch.clientX - zoomTapStart.x;
+        const moveY = touch.clientY - zoomTapStart.y;
+        if (Math.hypot(moveX, moveY) > 14) {
+          zoomTapEligible = false;
+          zoomTapMoved = true;
+          zoomTapBlockedUntil = Date.now() + 180;
+        }
+      }, { passive: true });
+      dragOverlay.addEventListener("touchend", (e) => {
+        if (!zoomTapEligible || !zoomTapStart || Date.now() < zoomTapBlockedUntil) {
+          zoomTapEligible = false;
+          zoomTapStart = null;
+          zoomTapMoved = false;
+          return;
+        }
+        const endedTouch = Array.from(e.changedTouches).find(
+          (item) => item.identifier === zoomTapStart.identifier,
+        );
+        if (
+          endedTouch &&
+          !zoomTapMoved &&
+          e.touches.length === 0 &&
+          Date.now() - zoomTapStart.time <= 240
+        ) {
+          toggleControls();
+        }
+        zoomTapEligible = false;
+        zoomTapStart = null;
+        zoomTapMoved = false;
+      });
+      dragOverlay.addEventListener("touchcancel", () => {
+        zoomTapEligible = false;
+        zoomTapBlockedUntil = Date.now() + 180;
+        zoomTapStart = null;
+        zoomTapMoved = false;
+      });
+
       // ── time formatter (used by controls & clip) ─────────────────
       const fmt = (s) => {
         s = Math.floor(s || 0);
@@ -1403,10 +1466,6 @@
         });
         const btn = document.getElementById("adminBtn");
         if (btn) btn.textContent = _isAdmin ? "🔓 Admin" : "🔒 Admin";
-        if (!_isAdmin) {
-          clipPanel.classList.remove("visible");
-          clipToggleBtn.classList.remove("active");
-        }
       }
 
       // ── clip functionality ───────────────────────────────────────
@@ -1658,42 +1717,13 @@
       // ── double-tap gestures (YouTube style) ──────────────────────
       let lastTapTime = 0;
       let lastTapRegion = "";
-
-      zoomWrap.addEventListener("pointerup", (e) => {
-        if (e.pointerType !== "touch" || scale > 1.01 || activeTouches.size > 1) return;
-
-        const region = getTapRegion(e.clientX);
-        const now = Date.now();
-
-        if (
-          region !== "center" &&
-          now - lastTapTime < DOUBLE_TAP_DELAY &&
-          lastTapRegion === region
-        ) {
-          lastTapTime = 0;
-          lastTapRegion = "";
-          skipPlayback(region === "left" ? -SKIP_SECONDS : SKIP_SECONDS);
-          return;
-        }
-
-        lastTapTime = now;
-        lastTapRegion = region;
-
-        if (region === "center") {
-          toggleControls();
-          lastTapTime = 0;
-          lastTapRegion = "";
-          return;
-        }
-
-        showControls();
-        setTimeout(() => {
-          if (Date.now() - lastTapTime >= DOUBLE_TAP_DELAY) {
-            lastTapTime = 0;
-            lastTapRegion = "";
-          }
-        }, DOUBLE_TAP_DELAY);
-      });
+      let tapResetTimer = null;
+      let touchTapStart = null;
+      let touchTapMoved = false;
+      let zoomTapEligible = false;
+      let zoomTapStart = null;
+      let zoomTapMoved = false;
+      let zoomTapBlockedUntil = 0;
 
       // ── pinch-to-zoom (mobile) ───────────────────────────────────
       let initialPinchDistance = 0;
@@ -1716,9 +1746,24 @@
       zoomWrap.addEventListener(
         "touchstart",
         (e) => {
+          if (scale > 1.01) return;
           Array.from(e.changedTouches).forEach((touch) => {
             activeTouches.set(touch.identifier, touch);
           });
+
+          if (activeTouches.size === 1 && e.changedTouches.length === 1) {
+            const touch = e.changedTouches[0];
+            touchTapStart = {
+              identifier: touch.identifier,
+              x: touch.clientX,
+              y: touch.clientY,
+              time: Date.now(),
+            };
+            touchTapMoved = false;
+          } else {
+            touchTapStart = null;
+            touchTapMoved = false;
+          }
 
           if (activeTouches.size === 2) {
             e.preventDefault();
@@ -1733,9 +1778,21 @@
       zoomWrap.addEventListener(
         "touchmove",
         (e) => {
+          if (scale > 1.01) return;
           Array.from(e.changedTouches).forEach((touch) => {
             activeTouches.set(touch.identifier, touch);
           });
+
+          if (touchTapStart && activeTouches.size === 1) {
+            const touch = activeTouches.get(touchTapStart.identifier);
+            if (touch) {
+              const moveX = touch.clientX - touchTapStart.x;
+              const moveY = touch.clientY - touchTapStart.y;
+              if (Math.hypot(moveX, moveY) > 18) {
+                touchTapMoved = true;
+              }
+            }
+          }
 
           if (activeTouches.size === 2) {
             e.preventDefault();
@@ -1758,6 +1815,23 @@
       );
 
       zoomWrap.addEventListener("touchend", (e) => {
+        if (scale > 1.01) return;
+        let tapCandidateX = null;
+
+        if (
+          touchTapStart &&
+          !touchTapMoved &&
+          scale <= 1.01 &&
+          activeTouches.size === 1
+        ) {
+          const endedTouch = Array.from(e.changedTouches).find(
+            (touch) => touch.identifier === touchTapStart.identifier,
+          );
+          if (endedTouch && Date.now() - touchTapStart.time <= 320) {
+            tapCandidateX = endedTouch.clientX;
+          }
+        }
+
         Array.from(e.changedTouches).forEach((touch) => {
           activeTouches.delete(touch.identifier);
         });
@@ -1765,13 +1839,54 @@
         if (activeTouches.size < 2) {
           initialPinchDistance = 0;
         }
+
+        if (activeTouches.size === 0) {
+          touchTapStart = null;
+          touchTapMoved = false;
+        }
+
+        if (tapCandidateX === null || activeTouches.size > 0) return;
+
+        const region = getTapRegion(tapCandidateX);
+        const now = Date.now();
+
+        if (
+          region !== "center" &&
+          now - lastTapTime < DOUBLE_TAP_DELAY &&
+          lastTapRegion === region
+        ) {
+          clearTimeout(tapResetTimer);
+          lastTapTime = 0;
+          lastTapRegion = "";
+          skipPlayback(region === "left" ? -SKIP_SECONDS : SKIP_SECONDS);
+          return;
+        }
+
+        if (region === "center") {
+          clearTimeout(tapResetTimer);
+          lastTapTime = 0;
+          lastTapRegion = "";
+          toggleControls();
+          return;
+        }
+
+        lastTapTime = now;
+        lastTapRegion = region;
+        clearTimeout(tapResetTimer);
+        tapResetTimer = setTimeout(() => {
+          lastTapTime = 0;
+          lastTapRegion = "";
+        }, DOUBLE_TAP_DELAY);
       });
 
       zoomWrap.addEventListener("touchcancel", (e) => {
+        if (scale > 1.01) return;
         Array.from(e.changedTouches).forEach((touch) => {
           activeTouches.delete(touch.identifier);
         });
         initialPinchDistance = 0;
+        touchTapStart = null;
+        touchTapMoved = false;
       });
 
       // ── play a camera ────────────────────────────────────────────

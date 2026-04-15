@@ -481,8 +481,6 @@ def get_progress_all(beelup_id):
 @app.route("/api/clip/<path:filename>", methods=["POST"])
 def download_clip(filename):
     """Generate, save and stream a MP4 clip from a video file using ffmpeg (admin only)."""
-    if not _is_admin():
-        return jsonify({"error": "No autorizado"}), 401
     if not _consume_rate_limit("clip", 6, 60):
         return jsonify({"error": "Demasiados clips solicitados. Espera un minuto e intenta otra vez."}), 429
     data = request.get_json(silent=True) or {}
