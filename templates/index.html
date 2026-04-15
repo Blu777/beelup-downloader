@@ -124,6 +124,7 @@
             padding: 1.2rem; text-align: center; color: rgba(230,237,243,0.65); font-size: 0.82rem; line-height: 1.6;
         }
         .calendar-video { width: 100%; height: 100%; display: block; background: #000; }
+        .calendar-video-rotated { width: 56.25%; height: 56.25%; transform: rotate(90deg); transform-origin: center center; }
         .calendar-player-meta { display: flex; flex-direction: column; gap: 0.2rem; }
         .calendar-player-title { font-size: 0.86rem; font-weight: 700; color: var(--text); line-height: 1.25; }
         .calendar-player-subtitle { font-size: 0.72rem; color: var(--muted); line-height: 1.35; }
@@ -483,6 +484,10 @@
             const totalMB = match.cameras.reduce((sum, camera) => sum + camera.size_mb, 0);
             return totalMB > 1024 ? `${(totalMB / 1024).toFixed(2)} GB` : `${totalMB.toFixed(0)} MB`;
         };
+        const calendarNeedsRotation = (match, camId) => !!(match && String(match.cancha) === '31' && String(camId || '') === 'der');
+        const applyCalendarRotation = active => {
+            calendarVideoPlayer.classList.toggle('calendar-video-rotated', !!active);
+        };
         const getClipsForMatch = matchId => _clipsByMatch[matchId] || [];
         const findMatchById = matchId => _allMatches.find(match => String(match.id) === String(matchId)) || null;
 
@@ -547,6 +552,7 @@
                 calendarVideoPlayer.removeAttribute('src');
                 calendarVideoPlayer.load();
                 calendarVideoPlayer.dataset.sourceKey = '';
+                applyCalendarRotation(false);
                 calendarVideoPlayer.style.display = 'none';
                 calendarPlayerPlaceholder.style.display = '';
                 calendarPlayerTitle.textContent = 'Sin reproducción seleccionada';
@@ -575,6 +581,7 @@
                     applyCalendarPlayback(false);
                     return;
                 }
+                applyCalendarRotation(calendarNeedsRotation(match, clip.cam_id));
                 sourceKey = `clip:${match.id}:${clip.filename}`;
                 sourceUrl = `/api/clips/stream/${encodeURIComponent(clip.filename)}`;
                 playerTitle = clip.name || clip.filename;
@@ -590,6 +597,7 @@
                     applyCalendarPlayback(false);
                     return;
                 }
+                applyCalendarRotation(calendarNeedsRotation(match, camera.cam_id));
                 sourceKey = `camera:${match.id}:${camera.filename}`;
                 sourceUrl = `/api/stream/${encodeURIComponent(camera.filename)}`;
                 playerTitle = getMatchTitle(match);
