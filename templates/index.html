@@ -719,7 +719,7 @@
             _currentView = view;
             const isCalendar = view === 'calendar';
             matchGrid.style.display = isCalendar ? 'none' : 'grid';
-            calendarSection.style.display = isCalendar ? '' : 'none';
+            calendarSection.style.display = isCalendar ? 'grid' : 'none';
             calendarNav.style.display = (isCalendar && _calendarMonths.length) ? '' : 'none';
             gridViewBtn.classList.toggle('active', !isCalendar);
             calendarViewBtn.classList.toggle('active', isCalendar);
