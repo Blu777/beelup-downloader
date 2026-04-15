@@ -10,11 +10,31 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN useradd -m -u 1000 appuser
 
 # Install updates and ffmpeg to patch OS-level CVEs
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends ffmpeg && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    . /etc/os-release; \
+    test "$VERSION_CODENAME" = "bookworm"; \
+    rm -f /etc/apt/sources.list; \
+    rm -f /etc/apt/sources.list.d/*; \
+    printf '%s\n' \
+        'Types: deb' \
+        'URIs: http://deb.debian.org/debian' \
+        'Suites: bookworm bookworm-updates' \
+        'Components: main' \
+        'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+        '' \
+        'Types: deb' \
+        'URIs: http://security.debian.org/debian-security' \
+        'Suites: bookworm-security' \
+        'Components: main' \
+        'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+        > /etc/apt/sources.list.d/debian.sources; \
+    if grep -RqsE '(trixie|deb13)' /etc/apt/sources.list.d /etc/apt/sources.list 2>/dev/null; then exit 1; fi; \
+    apt-get update; \
+    apt-get dist-upgrade -y; \
+    apt-get install -y --no-install-recommends ffmpeg; \
+    apt-get autoremove -y; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
 WORKDIR /app
 
