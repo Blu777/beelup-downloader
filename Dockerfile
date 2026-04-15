@@ -1,5 +1,10 @@
 # ── Beelup Downloader — Dockerfile ──────────────────────────────────────────
-FROM python:3.12-slim
+FROM python:3.12-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Create a non-root user to mitigate root-container vulnerabilities
 RUN useradd -m -u 1000 appuser
@@ -8,13 +13,14 @@ RUN useradd -m -u 1000 appuser
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install Python dependencies first (better layer caching)
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
+RUN pip install --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application source (omitting unused legacy scripts)

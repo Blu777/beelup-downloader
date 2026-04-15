@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 6 * * 1'
 
 env:
   REGISTRY: docker.io
@@ -34,6 +36,8 @@ jobs:
         with:
           context: .
           push: true
+          pull: true
+          no-cache: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:2.1.1
