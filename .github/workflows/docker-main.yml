@@ -40,10 +40,10 @@ jobs:
           no-cache: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:2.1.1
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:2.1.2
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
 
       - name: Image digest
-        run: 'echo "Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest and :2.1.1"'
+        run: 'echo "Image pushed: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest and :2.1.2"'
