@@ -280,6 +280,8 @@
         touch-action: none;
       }
       .zoom-wrap > video {
+        position: absolute;
+        inset: 0;
         width: 100%;
         height: 100%;
         object-fit: contain;
@@ -288,20 +290,15 @@
         pointer-events: none;
         user-select: none;
         -webkit-user-select: none;
-      }
-      .switch-freeze-frame {
-        position: absolute;
-        inset: 0;
-        z-index: 2;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        pointer-events: none;
         opacity: 0;
         transition: opacity 0.14s ease;
       }
-      .switch-freeze-frame.visible {
+      .zoom-wrap > video.active {
         opacity: 1;
+        z-index: 2;
+      }
+      .zoom-wrap > video.standby {
+        z-index: 1;
       }
 
       /* Drag overlay */
@@ -1011,9 +1008,17 @@
     <div id="playerView">
       <div class="video-wrapper controls-visible" id="videoWrapper">
         <div class="zoom-wrap" id="zoomWrap">
-          <img class="switch-freeze-frame" id="switchFreezeFrame" alt="" aria-hidden="true" />
           <video
             id="videoPlayer"
+            class="active"
+            preload="metadata"
+            draggable="false"
+            playsinline
+            muted
+          ></video>
+          <video
+            id="videoPlayerBuffer"
+            class="standby"
             preload="metadata"
             draggable="false"
             playsinline
@@ -1131,8 +1136,9 @@
       const matchGrid = document.getElementById("matchGrid");
 
       const videoWrapper = document.getElementById("videoWrapper");
-      const switchFreezeFrame = document.getElementById("switchFreezeFrame");
-      const videoPlayer = document.getElementById("videoPlayer");
+      const primaryVideoPlayer = document.getElementById("videoPlayer");
+      const secondaryVideoPlayer = document.getElementById("videoPlayerBuffer");
+      let videoPlayer = primaryVideoPlayer;
       const zoomWrap = document.getElementById("zoomWrap");
       const dragOverlay = document.getElementById("dragOverlay");
       const ctrlBar = document.getElementById("ctrlBar");
@@ -1166,7 +1172,61 @@
       let _cameraSwitchSeq = 0;
       let _onCameraLoadedMetadata = null;
       let _onCameraSeeked = null;
+      let _onCameraLoadedData = null;
+      let _cameraLoadedMetadataVideo = null;
+      let _cameraSeekVideo = null;
+      let _cameraLoadedDataVideo = null;
       const _cameraPreloadPool = new Map();
+
+      function forEachPlayerVideo(cb) {
+        cb(primaryVideoPlayer);
+        cb(secondaryVideoPlayer);
+      }
+
+      function getInactiveVideoPlayer() {
+        return videoPlayer === primaryVideoPlayer
+          ? secondaryVideoPlayer
+          : primaryVideoPlayer;
+      }
+
+      function releaseVideoSource(player) {
+        player.pause();
+        player.removeAttribute("src");
+        player.load();
+      }
+
+      function queueInactiveVideoCleanup(player) {
+        setTimeout(() => {
+          if (player !== videoPlayer) {
+            releaseVideoSource(player);
+          }
+        }, 180);
+      }
+
+      function setActiveVideoPlayer(nextPlayer) {
+        const previousPlayer = videoPlayer;
+        if (nextPlayer === previousPlayer) return previousPlayer;
+        nextPlayer.classList.add("active");
+        nextPlayer.classList.remove("standby");
+        previousPlayer.classList.remove("active");
+        previousPlayer.classList.add("standby");
+        videoPlayer = nextPlayer;
+        return previousPlayer;
+      }
+
+      function syncPlayerUi() {
+        scrubber.value = videoPlayer.duration
+          ? (videoPlayer.currentTime / videoPlayer.duration) * 1000
+          : 0;
+        timeStr.textContent = `${fmt(videoPlayer.currentTime)} / ${fmt(videoPlayer.duration)}`;
+        playBtn.textContent = videoPlayer.ended
+          ? "↺"
+          : videoPlayer.paused
+            ? "▶"
+            : "⏸";
+        muteBtn.textContent = videoPlayer.muted ? "🔇" : "🔊";
+        volSlider.value = videoPlayer.muted ? 0 : videoPlayer.volume;
+      }
 
       function _releasePreloadedCamera(filename) {
         const probe = _cameraPreloadPool.get(filename);
@@ -1178,14 +1238,21 @@
       }
 
       function clearPendingCameraEvents() {
-        if (_onCameraLoadedMetadata) {
-          videoPlayer.removeEventListener("loadedmetadata", _onCameraLoadedMetadata);
+        if (_onCameraLoadedMetadata && _cameraLoadedMetadataVideo) {
+          _cameraLoadedMetadataVideo.removeEventListener("loadedmetadata", _onCameraLoadedMetadata);
           _onCameraLoadedMetadata = null;
         }
-        if (_onCameraSeeked) {
-          videoPlayer.removeEventListener("seeked", _onCameraSeeked);
+        if (_onCameraSeeked && _cameraSeekVideo) {
+          _cameraSeekVideo.removeEventListener("seeked", _onCameraSeeked);
           _onCameraSeeked = null;
         }
+        if (_onCameraLoadedData && _cameraLoadedDataVideo) {
+          _cameraLoadedDataVideo.removeEventListener("loadeddata", _onCameraLoadedData);
+          _onCameraLoadedData = null;
+        }
+        _cameraLoadedMetadataVideo = null;
+        _cameraSeekVideo = null;
+        _cameraLoadedDataVideo = null;
       }
 
       function primeCameraSources(matchMeta, activeFilename = "") {
@@ -1214,38 +1281,6 @@
           probe.load();
           _cameraPreloadPool.set(cam.filename, probe);
         });
-      }
-
-      function showCameraFreezeFrame() {
-        if (!switchFreezeFrame) return;
-        try {
-          if (videoPlayer.readyState < 2 || videoPlayer.videoWidth <= 0 || videoPlayer.videoHeight <= 0) {
-            switchFreezeFrame.classList.remove("visible");
-            switchFreezeFrame.removeAttribute("src");
-            return;
-          }
-          const canvas = document.createElement("canvas");
-          canvas.width = videoPlayer.videoWidth;
-          canvas.height = videoPlayer.videoHeight;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) return;
-          ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
-          switchFreezeFrame.src = canvas.toDataURL("image/jpeg", 0.82);
-          switchFreezeFrame.classList.add("visible");
-        } catch {
-          switchFreezeFrame.classList.remove("visible");
-          switchFreezeFrame.removeAttribute("src");
-        }
-      }
-
-      function hideCameraFreezeFrame() {
-        if (!switchFreezeFrame) return;
-        switchFreezeFrame.classList.remove("visible");
-        setTimeout(() => {
-          if (!switchFreezeFrame.classList.contains("visible")) {
-            switchFreezeFrame.removeAttribute("src");
-          }
-        }, 180);
       }
 
       // ── zoom / pan ───────────────────────────────────────────────
@@ -1292,28 +1327,31 @@
 
       function applyRotation(active) {
         _rotationActive = active;
-        if (active) {
-          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
-          videoPlayer.style.setProperty("--rot-size", sz + "px");
-          videoPlayer.classList.add("video-rotated-90");
-          zoomWrap.classList.add("rotation-active");
-        } else {
-          videoPlayer.classList.remove("video-rotated-90");
-          zoomWrap.classList.remove("rotation-active");
-          videoPlayer.style.removeProperty("--rot-size");
-        }
+        zoomWrap.classList.toggle("rotation-active", active);
+        forEachPlayerVideo((player) => {
+          if (active) {
+            const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+            player.style.setProperty("--rot-size", sz + "px");
+            player.classList.add("video-rotated-90");
+          } else {
+            player.classList.remove("video-rotated-90");
+            player.style.removeProperty("--rot-size");
+          }
+        });
       }
 
       function applyT() {
-        if (_rotationActive) {
-          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
-          videoPlayer.style.setProperty("--rot-size", sz + "px");
-          videoPlayer.style.transform = `rotate(90deg) scale(${scale}) translate(${panX}px,${panY}px)`;
-          videoPlayer.style.transformOrigin = "center center";
-        } else {
-          videoPlayer.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
-          videoPlayer.style.transformOrigin = "center center";
-        }
+        forEachPlayerVideo((player) => {
+          if (_rotationActive) {
+            const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+            player.style.setProperty("--rot-size", sz + "px");
+            player.style.transform = `rotate(90deg) scale(${scale}) translate(${panX}px,${panY}px)`;
+            player.style.transformOrigin = "center center";
+          } else {
+            player.style.transform = `scale(${scale}) translate(${panX}px,${panY}px)`;
+            player.style.transformOrigin = "center center";
+          }
+        });
         const z = scale > 1.01;
         dragOverlay.style.pointerEvents = z ? "all" : "none";
         dragOverlay.style.cursor = z
@@ -1756,29 +1794,35 @@
       // ── custom controls ─────────────────────────────────────────
       let isScrubbing = false;
 
-      videoPlayer.addEventListener("timeupdate", () => {
-        if (isScrubbing) return;
-        scrubber.value = videoPlayer.duration
-          ? (videoPlayer.currentTime / videoPlayer.duration) * 1000
-          : 0;
-        timeStr.textContent = `${fmt(videoPlayer.currentTime)} / ${fmt(videoPlayer.duration)}`;
-      });
-      videoPlayer.addEventListener("play", () => {
-        playBtn.textContent = "⏸";
-        showControls();
-      });
-      videoPlayer.addEventListener("pause", () => {
-        playBtn.textContent = "▶";
-        showControls({ persist: true });
-      });
-      videoPlayer.addEventListener("ended", () => {
-        playBtn.textContent = "↺";
-        showControls({ persist: true });
-      });
-      videoPlayer.addEventListener("volumechange", () => {
-        muteBtn.textContent = videoPlayer.muted ? "🔇" : "🔊";
-        volSlider.value = videoPlayer.muted ? 0 : videoPlayer.volume;
-      });
+      function bindPlayerEvents(player) {
+        player.addEventListener("timeupdate", () => {
+          if (player !== videoPlayer || isScrubbing) return;
+          syncPlayerUi();
+        });
+        player.addEventListener("play", () => {
+          if (player !== videoPlayer) return;
+          syncPlayerUi();
+          showControls();
+        });
+        player.addEventListener("pause", () => {
+          if (player !== videoPlayer) return;
+          syncPlayerUi();
+          showControls({ persist: true });
+        });
+        player.addEventListener("ended", () => {
+          if (player !== videoPlayer) return;
+          syncPlayerUi();
+          showControls({ persist: true });
+        });
+        player.addEventListener("volumechange", () => {
+          if (player !== videoPlayer) return;
+          syncPlayerUi();
+        });
+      }
+
+      bindPlayerEvents(primaryVideoPlayer);
+      bindPlayerEvents(secondaryVideoPlayer);
+      syncPlayerUi();
 
       playBtn.addEventListener("click", () => {
         if (videoPlayer.ended) {
@@ -2049,15 +2093,17 @@
 
       // ── play a camera ────────────────────────────────────────────
       function playCamera(cam, isMulti, keepTime = false, matchMeta) {
+        const currentPlayer = videoPlayer;
+        const nextPlayer = getInactiveVideoPlayer();
         const switchSeq = ++_cameraSwitchSeq;
         const t =
-          keepTime && Number.isFinite(videoPlayer.currentTime)
-            ? videoPlayer.currentTime
+          keepTime && Number.isFinite(currentPlayer.currentTime)
+            ? currentPlayer.currentTime
             : 0;
-        const shouldResume = !keepTime || !videoPlayer.paused || videoPlayer.ended;
-        const previousMuted = videoPlayer.muted;
-        const previousVolume = videoPlayer.volume;
-        const previousRate = videoPlayer.playbackRate;
+        const shouldResume = !keepTime || !currentPlayer.paused || currentPlayer.ended;
+        const previousMuted = currentPlayer.muted;
+        const previousVolume = currentPlayer.volume;
+        const previousRate = currentPlayer.playbackRate;
         _currentClipFilename = cam.filename;
         _currentMatchId = matchMeta ? matchMeta.id : null;
         _currentCamId   = cam.cam_id || "";
@@ -2072,36 +2118,58 @@
           applyT();
         } else resetZ();
 
-        const applyPlaybackState = () => {
+        const finalizeSwap = () => {
           if (switchSeq !== _cameraSwitchSeq) return;
-          videoPlayer.playbackRate = previousRate;
-          videoPlayer.volume = previousVolume;
-          videoPlayer.muted = previousMuted;
+          clearPendingCameraEvents();
+          nextPlayer.playbackRate = previousRate;
+          nextPlayer.volume = previousVolume;
+          nextPlayer.muted = previousMuted;
+          const previousPlayer = setActiveVideoPlayer(nextPlayer);
+          syncPlayerUi();
           renderScrubberMarkers();
-          hideCameraFreezeFrame();
+          queueInactiveVideoCleanup(previousPlayer);
           if (!shouldResume) return;
-          videoPlayer
+          nextPlayer
             .play()
             .catch(() => {
               if (!previousMuted) {
-                videoPlayer.muted = true;
+                nextPlayer.muted = true;
+                syncPlayerUi();
               }
             });
         };
 
+        const waitForBufferedFrame = () => {
+          if (switchSeq !== _cameraSwitchSeq) return;
+          if (nextPlayer.readyState >= 2) {
+            finalizeSwap();
+            return;
+          }
+          _onCameraLoadedData = () => {
+            if (switchSeq !== _cameraSwitchSeq) return;
+            _onCameraLoadedData = null;
+            _cameraLoadedDataVideo = null;
+            finalizeSwap();
+          };
+          _cameraLoadedDataVideo = nextPlayer;
+          nextPlayer.addEventListener("loadeddata", _onCameraLoadedData, { once: true });
+        };
+
         clearPendingCameraEvents();
-        showCameraFreezeFrame();
-        videoPlayer.pause();
-        videoPlayer.removeAttribute("src");
-        videoPlayer.load();
-        videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
-        videoPlayer.load();
+        currentPlayer.pause();
+        releaseVideoSource(nextPlayer);
+        nextPlayer.playbackRate = previousRate;
+        nextPlayer.volume = previousVolume;
+        nextPlayer.muted = previousMuted;
+        nextPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
+        nextPlayer.load();
 
         _onCameraLoadedMetadata = () => {
           if (switchSeq !== _cameraSwitchSeq) return;
           _onCameraLoadedMetadata = null;
-          const duration = Number.isFinite(videoPlayer.duration)
-            ? videoPlayer.duration
+          _cameraLoadedMetadataVideo = null;
+          const duration = Number.isFinite(nextPlayer.duration)
+            ? nextPlayer.duration
             : 0;
           const targetTime =
             t > 0 && duration > 0
@@ -2111,16 +2179,19 @@
             _onCameraSeeked = () => {
               if (switchSeq !== _cameraSwitchSeq) return;
               _onCameraSeeked = null;
-              applyPlaybackState();
+              _cameraSeekVideo = null;
+              waitForBufferedFrame();
             };
-            videoPlayer.addEventListener("seeked", _onCameraSeeked, { once: true });
-            videoPlayer.currentTime = targetTime;
+            _cameraSeekVideo = nextPlayer;
+            nextPlayer.addEventListener("seeked", _onCameraSeeked, { once: true });
+            nextPlayer.currentTime = targetTime;
             return;
           }
-          applyPlaybackState();
+          waitForBufferedFrame();
         };
 
-        videoPlayer.addEventListener("loadedmetadata", _onCameraLoadedMetadata, { once: true });
+        _cameraLoadedMetadataVideo = nextPlayer;
+        nextPlayer.addEventListener("loadedmetadata", _onCameraLoadedMetadata, { once: true });
         primeCameraSources(matchMeta, cam.filename);
         showControls({ persist: true });
       }
