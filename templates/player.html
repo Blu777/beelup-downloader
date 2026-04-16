@@ -1167,13 +1167,27 @@
         const cancha = String(matchMeta?.cancha ?? "")
           .trim()
           .toLowerCase();
+        const title = String(matchMeta?.title ?? "")
+          .trim()
+          .toLowerCase();
+        const complejo = String(matchMeta?.complejo ?? "")
+          .trim()
+          .toLowerCase();
         const camId = String(cam?.cam_id ?? "")
           .trim()
           .toLowerCase();
         const filename = String(cam?.filename ?? "").toLowerCase();
-        const isCourt31 = cancha === "31" || /\b31\b/.test(cancha);
+        const isCourt31 =
+          cancha === "31" ||
+          /\b31\b/.test(cancha) ||
+          /\bcancha\s*31\b/.test(title) ||
+          /\bcancha\s*31\b/.test(complejo);
+        const hasCourtSignal =
+          cancha.length > 0 ||
+          /\bcancha\b/.test(title) ||
+          /\bcancha\b/.test(complejo);
         const isRightCamera = camId === "der" || /_der\.(mp4|ts)$/i.test(filename);
-        return !!matchMeta && isCourt31 && isRightCamera;
+        return !!matchMeta && isRightCamera && (isCourt31 || !hasCourtSignal);
       }
 
       function applyRotation(active) {
@@ -1956,23 +1970,30 @@
         showControls({ persist: true });
       }
 
-      // ── camera tabs ──────────────────────────────────────────────
-      function renderCamTabs(match) {
+      function renderCamTabs(match, activeFilename = "") {
         camTabs.innerHTML = "";
         const isMulti = match.cameras.length > 1;
+        const activeCam =
+          match.cameras.find((cam) => cam.filename === activeFilename) ||
+          match.cameras[0] ||
+          null;
+
+        const updateDlBtn = (c) => {
+          const camParam = c.cam_id
+            ? `?camara=${encodeURIComponent(c.cam_id)}`
+            : "";
+          const dlBtn = document.getElementById("playerDlBtn");
+          if (dlBtn) dlBtn.href = `/api/file/${match.id}${camParam}`;
+        };
+
+        if (activeCam) updateDlBtn(activeCam);
+
         match.cameras.forEach((cam, idx) => {
           const btn = document.createElement("button");
-          btn.className = "cam-tab" + (idx === 0 ? " active" : "");
+          btn.className =
+            "cam-tab" +
+            (activeCam && cam.filename === activeCam.filename ? " active" : "");
           btn.textContent = cam.label;
-
-          const updateDlBtn = (c) => {
-            const camParam = c.cam_id
-              ? `?camara=${encodeURIComponent(c.cam_id)}`
-              : "";
-            const dlBtn = document.getElementById("playerDlBtn");
-            if (dlBtn) dlBtn.href = `/api/file/${match.id}${camParam}`;
-          };
-          if (idx === 0) updateDlBtn(cam);
 
           btn.addEventListener("click", () => {
             document
@@ -2098,8 +2119,18 @@
           return;
         }
 
-        renderCamTabs(match);
-        playCamera(match.cameras[0], match.cameras.length > 1, false, match);
+        const initialCam = match.cameras[0] || null;
+        if (!initialCam) {
+          playerView.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:1rem;color:var(--text-dim);padding:2rem;text-align:center;">
+            <div style="font-size:3rem;">📹</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--text);">No hay cámaras disponibles</div>
+            <a href="/" style="margin-top:0.5rem;padding:0.5rem 1.4rem;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:8px;text-decoration:none;font-weight:600;">← Ir a la biblioteca</a>
+          </div>`;
+          return;
+        }
+
+        renderCamTabs(match, initialCam.filename);
+        playCamera(initialCam, match.cameras.length > 1, false, match);
         loadClipsForTimeline(id);
       }
 
