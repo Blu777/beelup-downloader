@@ -510,12 +510,13 @@ async def _download_video_worker_async(beelup_id, camara=""):
                         "ffmpeg", "-y", "-i", ts_output_file,
                         "-vf", "transpose=1",
                         "-c:a", "copy",
+                        "-movflags", "+faststart",
                         mp4_output_file
                     ]
                 else:
                     cmd = [
                         "ffmpeg", "-y", "-i", ts_output_file,
-                        "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                        "-c", "copy", "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart",
                         mp4_output_file
                     ]
                 # Run ffmpeg with low priority to avoid crushing the system.

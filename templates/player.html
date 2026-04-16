@@ -999,7 +999,7 @@
         <div class="zoom-wrap" id="zoomWrap">
           <video
             id="videoPlayer"
-            preload="auto"
+            preload="metadata"
             draggable="false"
             playsinline
             muted
@@ -1146,6 +1146,59 @@
       const clipRecBtn    = document.getElementById("clipRecBtn");
       const clipResetBtn  = document.getElementById("clipResetBtn");
       const clipProgress  = document.getElementById("clipProgress");
+
+      let _cameraSwitchSeq = 0;
+      let _onCameraLoadedMetadata = null;
+      let _onCameraSeeked = null;
+      const _cameraPreloadPool = new Map();
+
+      function _releasePreloadedCamera(filename) {
+        const probe = _cameraPreloadPool.get(filename);
+        if (!probe) return;
+        probe.pause();
+        probe.removeAttribute("src");
+        probe.load();
+        _cameraPreloadPool.delete(filename);
+      }
+
+      function clearPendingCameraEvents() {
+        if (_onCameraLoadedMetadata) {
+          videoPlayer.removeEventListener("loadedmetadata", _onCameraLoadedMetadata);
+          _onCameraLoadedMetadata = null;
+        }
+        if (_onCameraSeeked) {
+          videoPlayer.removeEventListener("seeked", _onCameraSeeked);
+          _onCameraSeeked = null;
+        }
+      }
+
+      function primeCameraSources(matchMeta, activeFilename = "") {
+        const cameras = Array.isArray(matchMeta?.cameras) ? matchMeta.cameras : [];
+        const keepFilenames = new Set(
+          cameras.map((cam) => cam?.filename).filter(Boolean),
+        );
+        for (const filename of Array.from(_cameraPreloadPool.keys())) {
+          if (!keepFilenames.has(filename) || filename === activeFilename) {
+            _releasePreloadedCamera(filename);
+          }
+        }
+        cameras.forEach((cam) => {
+          if (
+            !cam?.filename ||
+            cam.filename === activeFilename ||
+            _cameraPreloadPool.has(cam.filename)
+          ) {
+            return;
+          }
+          const probe = document.createElement("video");
+          probe.preload = "metadata";
+          probe.muted = true;
+          probe.playsInline = true;
+          probe.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
+          probe.load();
+          _cameraPreloadPool.set(cam.filename, probe);
+        });
+      }
 
       // ── zoom / pan ───────────────────────────────────────────────
       let scale = 1,
@@ -1948,12 +2001,18 @@
 
       // ── play a camera ────────────────────────────────────────────
       function playCamera(cam, isMulti, keepTime = false, matchMeta) {
-        const t = keepTime ? videoPlayer.currentTime : 0;
+        const switchSeq = ++_cameraSwitchSeq;
+        const t =
+          keepTime && Number.isFinite(videoPlayer.currentTime)
+            ? videoPlayer.currentTime
+            : 0;
+        const shouldResume = !keepTime || !videoPlayer.paused || videoPlayer.ended;
+        const previousMuted = videoPlayer.muted;
+        const previousVolume = videoPlayer.volume;
+        const previousRate = videoPlayer.playbackRate;
         _currentClipFilename = cam.filename;
         _currentMatchId = matchMeta ? matchMeta.id : null;
         _currentCamId   = cam.cam_id || "";
-        videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
-        videoPlayer.load();
 
         const needsRotation = needsRotationForPlayback(matchMeta, cam);
         applyRotation(needsRotation);
@@ -1964,24 +2023,55 @@
           panY = 0;
           applyT();
         } else resetZ();
-        videoPlayer.addEventListener(
-          "loadedmetadata",
-          () => {
-            if (t > 0 && t < videoPlayer.duration) videoPlayer.currentTime = t;
-            renderScrubberMarkers();
-            // First unmute after user gesture on first play
-            videoPlayer
-              .play()
-              .then(() => {
-                // Try to unmute silently after autoplay started
-                videoPlayer.muted = false;
-              })
-              .catch(() => {
-                // Autoplay blocked — stay muted, user can unmute
-              });
-          },
-          { once: true },
-        );
+
+        const applyPlaybackState = () => {
+          if (switchSeq !== _cameraSwitchSeq) return;
+          videoPlayer.playbackRate = previousRate;
+          videoPlayer.volume = previousVolume;
+          videoPlayer.muted = previousMuted;
+          renderScrubberMarkers();
+          if (!shouldResume) return;
+          videoPlayer
+            .play()
+            .catch(() => {
+              if (!previousMuted) {
+                videoPlayer.muted = true;
+              }
+            });
+        };
+
+        clearPendingCameraEvents();
+        videoPlayer.pause();
+        videoPlayer.removeAttribute("src");
+        videoPlayer.load();
+        videoPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
+        videoPlayer.load();
+
+        _onCameraLoadedMetadata = () => {
+          if (switchSeq !== _cameraSwitchSeq) return;
+          _onCameraLoadedMetadata = null;
+          const duration = Number.isFinite(videoPlayer.duration)
+            ? videoPlayer.duration
+            : 0;
+          const targetTime =
+            t > 0 && duration > 0
+              ? Math.min(t, Math.max(0, duration - 0.25))
+              : 0;
+          if (targetTime > 0) {
+            _onCameraSeeked = () => {
+              if (switchSeq !== _cameraSwitchSeq) return;
+              _onCameraSeeked = null;
+              applyPlaybackState();
+            };
+            videoPlayer.addEventListener("seeked", _onCameraSeeked, { once: true });
+            videoPlayer.currentTime = targetTime;
+            return;
+          }
+          applyPlaybackState();
+        };
+
+        videoPlayer.addEventListener("loadedmetadata", _onCameraLoadedMetadata, { once: true });
+        primeCameraSources(matchMeta, cam.filename);
         showControls({ persist: true });
       }
 
@@ -2011,6 +2101,7 @@
           btn.textContent = cam.label;
 
           btn.addEventListener("click", () => {
+            if (cam.filename === _currentClipFilename) return;
             document
               .querySelectorAll(".cam-tab")
               .forEach((b) => b.classList.remove("active"));
