@@ -1174,10 +1174,73 @@
       let _onCameraLoadedMetadata = null;
       let _onCameraSeeked = null;
       let _onCameraLoadedData = null;
+      let _onCameraPlaying = null;
       let _cameraLoadedMetadataVideo = null;
       let _cameraSeekVideo = null;
       let _cameraLoadedDataVideo = null;
+      let _cameraPlayingVideo = null;
       const _cameraPreloadPool = new Map();
+      const _cameraSwitchTimings = [];
+      let _activeCameraSwitchTrace = null;
+
+      window.__cameraSwitchTimings = _cameraSwitchTimings;
+
+      function createCameraSwitchTrace(cam, currentPlayer, keepTime, matchMeta) {
+        const trace = {
+          id: _cameraSwitchSeq,
+          fromFilename: _currentClipFilename || "",
+          toFilename: cam?.filename || "",
+          cameraLabel: cam?.label || cam?.cam_id || cam?.filename || "",
+          startedAt: performance.now(),
+          marks: [],
+          finalized: false,
+        };
+        markCameraSwitchTrace(trace, "click", {
+          keepTime,
+          currentTime: Number.isFinite(currentPlayer.currentTime)
+            ? Number(currentPlayer.currentTime.toFixed(3))
+            : 0,
+          paused: currentPlayer.paused,
+          readyState: currentPlayer.readyState,
+          matchId: matchMeta?.id ?? null,
+        });
+        _activeCameraSwitchTrace = trace;
+        return trace;
+      }
+
+      function markCameraSwitchTrace(trace, stage, extra = {}) {
+        if (!trace || trace.finalized) return;
+        const elapsedMs = Number((performance.now() - trace.startedAt).toFixed(1));
+        trace.marks.push({ stage, elapsedMs, ...extra });
+      }
+
+      function finishCameraSwitchTrace(trace, status, extra = {}) {
+        if (!trace || trace.finalized) return;
+        markCameraSwitchTrace(trace, status, extra);
+        trace.finalized = true;
+        const totalMs = Number((performance.now() - trace.startedAt).toFixed(1));
+        const summary = {
+          id: trace.id,
+          fromFilename: trace.fromFilename,
+          toFilename: trace.toFilename,
+          cameraLabel: trace.cameraLabel,
+          status,
+          totalMs,
+          marks: trace.marks,
+        };
+        _cameraSwitchTimings.push(summary);
+        if (_cameraSwitchTimings.length > 40) {
+          _cameraSwitchTimings.shift();
+        }
+        console.groupCollapsed(
+          `[camera-switch #${trace.id}] ${summary.fromFilename || "(none)"} -> ${summary.toFilename} :: ${status} (${totalMs}ms)`,
+        );
+        console.table(summary.marks);
+        console.groupEnd();
+        if (_activeCameraSwitchTrace === trace) {
+          _activeCameraSwitchTrace = null;
+        }
+      }
 
       function forEachPlayerVideo(cb) {
         cb(primaryVideoPlayer);
@@ -1251,9 +1314,14 @@
           _cameraLoadedDataVideo.removeEventListener("loadeddata", _onCameraLoadedData);
           _onCameraLoadedData = null;
         }
+        if (_onCameraPlaying && _cameraPlayingVideo) {
+          _cameraPlayingVideo.removeEventListener("playing", _onCameraPlaying);
+          _onCameraPlaying = null;
+        }
         _cameraLoadedMetadataVideo = null;
         _cameraSeekVideo = null;
         _cameraLoadedDataVideo = null;
+        _cameraPlayingVideo = null;
       }
 
       function primeCameraSources(matchMeta, activeFilename = "") {
@@ -2097,6 +2165,12 @@
         const currentPlayer = videoPlayer;
         const nextPlayer = getInactiveVideoPlayer();
         const switchSeq = ++_cameraSwitchSeq;
+        if (_activeCameraSwitchTrace && !_activeCameraSwitchTrace.finalized) {
+          finishCameraSwitchTrace(_activeCameraSwitchTrace, "superseded", {
+            nextFilename: cam.filename,
+          });
+        }
+        const switchTrace = createCameraSwitchTrace(cam, currentPlayer, keepTime, matchMeta);
         const t =
           keepTime && Number.isFinite(currentPlayer.currentTime)
             ? currentPlayer.currentTime
@@ -2128,21 +2202,71 @@
           const previousPlayer = setActiveVideoPlayer(nextPlayer);
           syncPlayerUi();
           renderScrubberMarkers();
+          markCameraSwitchTrace(switchTrace, "swap", {
+            readyState: nextPlayer.readyState,
+            currentTime: Number.isFinite(nextPlayer.currentTime)
+              ? Number(nextPlayer.currentTime.toFixed(3))
+              : 0,
+          });
           queueInactiveVideoCleanup(previousPlayer);
-          if (!shouldResume) return;
+          if (!shouldResume) {
+            finishCameraSwitchTrace(switchTrace, "ready-paused", {
+              paused: true,
+              readyState: nextPlayer.readyState,
+            });
+            return;
+          }
+          _onCameraPlaying = () => {
+            if (switchSeq !== _cameraSwitchSeq) return;
+            _onCameraPlaying = null;
+            _cameraPlayingVideo = null;
+            markCameraSwitchTrace(switchTrace, "playing", {
+              readyState: nextPlayer.readyState,
+              currentTime: Number.isFinite(nextPlayer.currentTime)
+                ? Number(nextPlayer.currentTime.toFixed(3))
+                : 0,
+            });
+            finishCameraSwitchTrace(switchTrace, "done", {
+              paused: nextPlayer.paused,
+            });
+          };
+          _cameraPlayingVideo = nextPlayer;
+          nextPlayer.addEventListener("playing", _onCameraPlaying, { once: true });
+          markCameraSwitchTrace(switchTrace, "play-requested", {
+            muted: nextPlayer.muted,
+            volume: Number(nextPlayer.volume.toFixed(2)),
+          });
           nextPlayer
             .play()
+            .then(() => {
+              markCameraSwitchTrace(switchTrace, "play-promise-resolved", {
+                paused: nextPlayer.paused,
+              });
+            })
             .catch(() => {
+              if (_onCameraPlaying && _cameraPlayingVideo === nextPlayer) {
+                nextPlayer.removeEventListener("playing", _onCameraPlaying);
+                _onCameraPlaying = null;
+                _cameraPlayingVideo = null;
+              }
               if (!previousMuted) {
                 nextPlayer.muted = true;
                 syncPlayerUi();
               }
+              finishCameraSwitchTrace(switchTrace, "play-failed", {
+                mutedAfterFallback: nextPlayer.muted,
+                readyState: nextPlayer.readyState,
+              });
             });
         };
 
         const waitForBufferedFrame = () => {
           if (switchSeq !== _cameraSwitchSeq) return;
           if (nextPlayer.readyState >= 2) {
+            markCameraSwitchTrace(switchTrace, "loadeddata", {
+              mode: "immediate",
+              readyState: nextPlayer.readyState,
+            });
             finalizeSwap();
             return;
           }
@@ -2150,6 +2274,10 @@
             if (switchSeq !== _cameraSwitchSeq) return;
             _onCameraLoadedData = null;
             _cameraLoadedDataVideo = null;
+            markCameraSwitchTrace(switchTrace, "loadeddata", {
+              mode: "event",
+              readyState: nextPlayer.readyState,
+            });
             finalizeSwap();
           };
           _cameraLoadedDataVideo = nextPlayer;
@@ -2164,6 +2292,10 @@
         nextPlayer.muted = previousMuted;
         nextPlayer.src = `/api/stream/${encodeURIComponent(cam.filename)}`;
         nextPlayer.load();
+        markCameraSwitchTrace(switchTrace, "source-loaded", {
+          targetTime: Number(t.toFixed(3)),
+          shouldResume,
+        });
 
         _onCameraLoadedMetadata = () => {
           if (switchSeq !== _cameraSwitchSeq) return;
@@ -2172,15 +2304,25 @@
           const duration = Number.isFinite(nextPlayer.duration)
             ? nextPlayer.duration
             : 0;
+          markCameraSwitchTrace(switchTrace, "loadedmetadata", {
+            duration: Number(duration.toFixed(3)),
+            readyState: nextPlayer.readyState,
+          });
           const targetTime =
             t > 0 && duration > 0
               ? Math.min(t, Math.max(0, duration - 0.25))
               : 0;
           if (targetTime > 0) {
+            markCameraSwitchTrace(switchTrace, "seek-requested", {
+              targetTime: Number(targetTime.toFixed(3)),
+            });
             _onCameraSeeked = () => {
               if (switchSeq !== _cameraSwitchSeq) return;
               _onCameraSeeked = null;
               _cameraSeekVideo = null;
+              markCameraSwitchTrace(switchTrace, "seeked", {
+                currentTime: Number(nextPlayer.currentTime.toFixed(3)),
+              });
               waitForBufferedFrame();
             };
             _cameraSeekVideo = nextPlayer;
