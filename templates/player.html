@@ -1393,24 +1393,37 @@
         return !!matchMeta && isRightCamera && (isCourt31 || !hasCourtSignal);
       }
 
-      function applyRotation(active) {
+      function isPlayerRotationActive(player) {
+        return player.dataset.rotationActive === "1";
+      }
+
+      function setPlayerRotationState(player, active) {
+        player.dataset.rotationActive = active ? "1" : "0";
+        if (active) {
+          const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
+          player.style.setProperty("--rot-size", sz + "px");
+          player.classList.add("video-rotated-90");
+        } else {
+          player.classList.remove("video-rotated-90");
+          player.style.removeProperty("--rot-size");
+        }
+      }
+
+      function syncActiveRotation(active) {
         _rotationActive = active;
         zoomWrap.classList.toggle("rotation-active", active);
-        forEachPlayerVideo((player) => {
-          if (active) {
-            const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
-            player.style.setProperty("--rot-size", sz + "px");
-            player.classList.add("video-rotated-90");
-          } else {
-            player.classList.remove("video-rotated-90");
-            player.style.removeProperty("--rot-size");
-          }
-        });
+      }
+
+      function applyRotation(active, targetPlayer = videoPlayer, syncActive = true) {
+        setPlayerRotationState(targetPlayer, active);
+        if (syncActive) {
+          syncActiveRotation(active);
+        }
       }
 
       function applyT() {
         forEachPlayerVideo((player) => {
-          if (_rotationActive) {
+          if (isPlayerRotationActive(player)) {
             const sz = Math.min(zoomWrap.clientWidth, zoomWrap.clientHeight);
             player.style.setProperty("--rot-size", sz + "px");
             player.style.transform = `rotate(90deg) scale(${scale}) translate(${panX}px,${panY}px)`;
@@ -2183,7 +2196,7 @@
         _currentCamId   = cam.cam_id || "";
 
         const needsRotation = needsRotationForPlayback(matchMeta, cam);
-        applyRotation(needsRotation);
+        applyRotation(needsRotation, nextPlayer, false);
 
         if (isMulti) {
           scale = 2;
@@ -2198,6 +2211,7 @@
           nextPlayer.playbackRate = previousRate;
           nextPlayer.volume = previousVolume;
           nextPlayer.muted = previousMuted;
+          syncActiveRotation(needsRotation);
           const previousPlayer = setActiveVideoPlayer(nextPlayer);
           syncPlayerUi();
           renderScrubberMarkers();
