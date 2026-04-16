@@ -1225,6 +1225,21 @@
         zoomCorner.classList.toggle("zoom-active", z);
         if (z) zoomBadge.textContent = scale.toFixed(1) + "×";
       }
+
+      function getPanDeltaFromPointer(dx, dy) {
+        if (_rotationActive) {
+          return {
+            x: dy / scale,
+            y: -dx / scale,
+          };
+        }
+
+        return {
+          x: dx / scale,
+          y: dy / scale,
+        };
+      }
+
       function setZ(ns, cx = 0, cy = 0) {
         ns = Math.min(MAX_Z, Math.max(MIN_Z, ns));
         panX = (panX - cx / scale) * (ns / scale) + cx / ns;
@@ -1289,8 +1304,9 @@
       });
       dragOverlay.addEventListener("pointermove", (e) => {
         if (ptrId === null || e.pointerId !== ptrId) return;
-        panX = panX0 + (e.clientX - dragX) / scale;
-        panY = panY0 + (e.clientY - dragY) / scale;
+        const delta = getPanDeltaFromPointer(e.clientX - dragX, e.clientY - dragY);
+        panX = panX0 + delta.x;
+        panY = panY0 + delta.y;
         applyT();
       });
       dragOverlay.addEventListener("pointerup", (e) => {
