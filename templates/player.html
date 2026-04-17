@@ -3,13 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Reproductor – B-Downloader</title>
+    <title>Chala Cup Archive – Reproductor</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png" />
     <style>
       *,
       *::before,
@@ -964,9 +965,9 @@
     <!-- ═══ GALLERY VIEW ═══ -->
     <div id="galleryView">
       <header class="g-header">
-        <div class="g-logo">B-<span>Downloader</span></div>
+        <div class="g-logo"><span>CCA</span></div>
         <span class="g-subtitle"
-          >Biblioteca de partidos
+          >Chala Cup Archive
           <span style="font-size: 0.65rem; color: rgba(255, 255, 255, 0.2)"
             >(v{{ version }})</span
           ></span
@@ -992,7 +993,7 @@
     <!-- ═══ MATCH CLIPS VIEW ═══ -->
     <div id="matchClipsView" style="display:none;">
       <header class="g-header">
-        <div class="g-logo">B-<span>Downloader</span></div>
+        <div class="g-logo"><span>CCA</span></div>
         <span class="g-subtitle" id="mcvTitle">Clips del partido</span>
         <a href="#" id="mcvWatchBtn" class="back" style="margin-left:auto;">▶ Ver partido completo</a>
         <a href="/" class="back" style="margin-left:0.5rem;">← Biblioteca</a>

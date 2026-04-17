@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>B-Downloader – Biblioteca</title>
+    <title>Chala Cup Archive – Biblioteca</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="icon" href="{{ url_for('static', filename='favicon.png') }}" type="image/png" />
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -267,8 +268,8 @@
 
     <!-- ═══ HEADER ═══ -->
     <header class="lib-header">
-        <div class="lib-logo">B-<span>Downloader</span></div>
-        <span class="lib-sub">Biblioteca</span>
+        <div class="lib-logo"><span>CCA</span></div>
+        <span class="lib-sub">Chala Cup Archive</span>
         <div class="h-spacer"></div>
         <a href="/manage" id="manageLink" class="h-btn purple admin-only" style="display:none">⬇ Gestionar descargas</a>
         <button id="adminTriggerBtn" onclick="_openAdminModal()" class="h-btn">🔒 Admin</button>
