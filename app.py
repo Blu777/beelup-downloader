@@ -129,10 +129,28 @@ def _reset_rate_limit(scope: str) -> None:
         _RATE_LIMIT_BUCKETS.pop(key, None)
 
 def _consume_rate_limit(scope: str, max_hits: int, window_seconds: int) -> bool:
-    if _is_rate_limited(scope, max_hits, window_seconds):
-        return False
-    _record_rate_limit_hit(scope, window_seconds)
-    return True
+    """Atomically check the rate limit and record a hit.
+
+    Returns True if the request is allowed, False if it should be rejected.
+    Both operations happen inside a single lock acquisition to prevent
+    TOCTOU races where concurrent threads all pass the check before any
+    of them records the hit.
+    """
+    now = time.time()
+    key = (scope, _client_ip())
+    with _RATE_LIMIT_LOCK:
+        _cleanup_rate_limit_buckets_locked(now)
+        entry = _RATE_LIMIT_BUCKETS.get(key)
+        hits = _prune_rate_limit_hits(entry.get("hits", []), now, window_seconds) if entry else []
+
+        if len(hits) >= max_hits:
+            if hits:
+                _RATE_LIMIT_BUCKETS[key] = {"hits": hits, "window_seconds": window_seconds}
+            return False
+
+        hits.append(now)
+        _RATE_LIMIT_BUCKETS[key] = {"hits": hits, "window_seconds": window_seconds}
+        return True
 
 # ── Security helpers ──────────────────────────────────────────────────────────
 
