@@ -322,7 +322,7 @@ VERSION = "2.1.2"
 
 _COVERS = {
     "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
-    "MEGAFUTBOL": "https://lh3.googleusercontent.com/gps-cs/ACgwaOsg5UneFAp5IBswymkGPOwKpzaBqKQKiuBJABmj4TzcZkw8CUVG0m7Sg_m37Zdui2vqbB1BKxwXx3FWUyQGywaBGUyYfKFX9F8Yn9_nZmMeMhrT0Y4j8MJMSuKWFe3xrB1IXkKg=w462-h260-k-no"
+    "MEGAFUTBOL": "/static/megafutbol.jpg"
 }
 
 _CAM_LABELS = {

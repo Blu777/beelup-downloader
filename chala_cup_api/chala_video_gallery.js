@@ -330,7 +330,7 @@
                             title: "MEGAFUTBOL - SAN JUSTO / F8 - Cancha 32 / Martes 17/2",
                             date: "2026-02-17",
                             complejo: "MEGAFUTBOL - SAN JUSTO",
-                            cover_url: "https://lh3.googleusercontent.com/gps-cs/ACgwaOsg5UneFAp5IBswymkGPOwKpzaBqKQKiuBJABmj4TzcZkw8CUVG0m7Sg_m37Zdui2vqbB1BKxwXx3FWUyQGywaBGUyYfKFX9F8Yn9_nZmMeMhrT0Y4j8MJMSuKWFe3xrB1IXkKg=w462-h260-k-no",
+                            cover_url: "/static/megafutbol.jpg",
                             full_videos: [
                                 { cam_id: "central", label: "Cámara 1 (Central)", stream_url: "/api/stream/2026-02-17_video_26745803_central.mp4" },
                                 { cam_id: "izq", label: "Cámara 2 (Izquierda)", stream_url: "/api/stream/2026-02-17_video_26745803_izq.mp4" },
@@ -356,7 +356,7 @@
                             title: "MEGAFUTBOL - SAN JUSTO / F8 - Cancha 12 / Domingo 1/3",
                             date: "2026-03-01",
                             complejo: "MEGAFUTBOL - SAN JUSTO",
-                            cover_url: "https://lh3.googleusercontent.com/gps-cs/ACgwaOsg5UneFAp5IBswymkGPOwKpzaBqKQKiuBJABmj4TzcZkw8CUVG0m7Sg_m37Zdui2vqbB1BKxwXx3FWUyQGywaBGUyYfKFX9F8Yn9_nZmMeMhrT0Y4j8MJMSuKWFe3xrB1IXkKg=w462-h260-k-no",
+                            cover_url: "/static/megafutbol.jpg",
                             full_videos: [
                                 { cam_id: "central", label: "Cámara única", stream_url: "/api/stream/2026-03-01_video_27240018.mp4" }
                             ],
