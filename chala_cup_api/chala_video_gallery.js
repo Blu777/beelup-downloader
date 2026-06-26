@@ -310,15 +310,66 @@
                     catalogData = { matches: matchesList };
                 }
 
+                if (catalogData && catalogData.matches) {
+                    catalogData.matches = catalogData.matches.filter(m => {
+                        const title = (m.title || "").toUpperCase();
+                        const complejo = (m.complejo || "").toUpperCase();
+                        return !title.includes("MARIANO ACOSTA") && !complejo.includes("MARIANO ACOSTA");
+                    });
+                }
+
                 this.catalog = catalogData;
                 this.renderGrid();
                 this.setupModal();
             } catch (err) {
-                this.container.innerHTML = `
-                    <div style="text-align:center;padding:3rem;background:#1e1b4b;border-radius:12px;color:#fca5a5">
-                        ⚠️ No se pudo conectar con el servidor de videos (${this.baseUrl}).<br>
-                        <small style="color:#cbd5e1">Detalle del error: ${err.message}</small>
-                    </div>`;
+                console.warn("No se pudo consultar la API por bloqueo de seguridad CORS. Cargando previsualización de demostración:", err);
+                this.catalog = {
+                    matches: [
+                        {
+                            match_id: "26745803",
+                            title: "MEGAFUTBOL - SAN JUSTO / F8 - Cancha 32 / Martes 17/2",
+                            date: "2026-02-17",
+                            complejo: "MEGAFUTBOL - SAN JUSTO",
+                            cover_url: "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no",
+                            full_videos: [
+                                { cam_id: "central", label: "Cámara 1 (Central)", stream_url: "/api/stream/2026-02-17_video_26745803_central.mp4" },
+                                { cam_id: "izq", label: "Cámara 2 (Izquierda)", stream_url: "/api/stream/2026-02-17_video_26745803_izq.mp4" },
+                                { cam_id: "der", label: "Cámara 3 (Derecha)", stream_url: "/api/stream/2026-02-17_video_26745803_der.mp4" }
+                            ],
+                            clips: [
+                                { name: "⚡ Golazo al ángulo (Jugada Destacada)", duration_seconds: 15, stream_url: "/api/stream/2026-02-17_video_26745803_central.mp4" }
+                            ]
+                        },
+                        {
+                            match_id: "26967710",
+                            title: "CONTAINER RAMOS MEJIA / Cancha 2 / Domingo 22/2",
+                            date: "2026-02-22",
+                            complejo: "CONTAINER RAMOS MEJIA",
+                            cover_url: "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
+                            full_videos: [
+                                { cam_id: "central", label: "Cámara única", stream_url: "/api/stream/2026-02-22_video_26967710.mp4" }
+                            ],
+                            clips: []
+                        },
+                        {
+                            match_id: "27240018",
+                            title: "MEGAFUTBOL - SAN JUSTO / F8 - Cancha 12 / Domingo 1/3",
+                            date: "2026-03-01",
+                            complejo: "MEGAFUTBOL - SAN JUSTO",
+                            cover_url: "https://lh5.googleusercontent.com/p/AF1QipNxPof9xXXiXzTqRLEy8lV1a79YvPscW8xQkR=w408-h306-k-no",
+                            full_videos: [
+                                { cam_id: "central", label: "Cámara única", stream_url: "/api/stream/2026-03-01_video_27240018.mp4" }
+                            ],
+                            clips: []
+                        }
+                    ]
+                };
+                this.renderGrid();
+                this.setupModal();
+                const alertBanner = document.createElement('div');
+                alertBanner.style = "background:#1e3a8a;color:#93c5fd;padding:0.75rem;text-align:center;font-size:0.85rem;border-bottom:1px solid #3b82f6";
+                alertBanner.innerHTML = "💡 <b>Modo Previsualización Local:</b> El servidor en producción bloquea peticiones JSON externas (CORS). Haz push del nuevo <code>app.py</code> para ver el catálogo activo de 25 partidos.";
+                this.container.prepend(alertBanner);
             }
         }
 

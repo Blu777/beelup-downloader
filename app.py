@@ -480,10 +480,14 @@ def public_catalog():
                 "size_mb": csize
             })
 
+    filtered_matches = [
+        m for m in matches.values()
+        if "MARIANO ACOSTA" not in m.get("title", "").upper() and "MARIANO ACOSTA" not in m.get("complejo", "").upper()
+    ]
     catalog = {
         "generator": "BeelupDownloader-ChalaAPI/2.1.2",
-        "total_matches": len(matches),
-        "matches": list(matches.values())
+        "total_matches": len(filtered_matches),
+        "matches": filtered_matches
     }
     return jsonify(catalog)
 
