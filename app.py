@@ -321,7 +321,7 @@ def _extract_beelup_id(raw: str) -> str | None:
 VERSION = "2.1.2"
 
 _COVERS = {
-    "CONTAINER": "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
+    "CONTAINER": "/static/container.jpg",
     "MEGAFUTBOL": "/static/megafutbol.jpg"
 }
 

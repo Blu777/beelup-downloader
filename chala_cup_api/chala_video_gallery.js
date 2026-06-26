@@ -345,7 +345,7 @@
                             title: "CONTAINER RAMOS MEJIA / Cancha 2 / Domingo 22/2",
                             date: "2026-02-22",
                             complejo: "CONTAINER RAMOS MEJIA",
-                            cover_url: "https://lh5.googleusercontent.com/p/AF1QipOhj41z6lD0gALX-w_S4LPEpPZJ298Yt_-xR2rR=w408-h306-k-no",
+                            cover_url: "/static/container.jpg",
                             full_videos: [
                                 { cam_id: "central", label: "Cámara única", stream_url: "/api/stream/2026-02-22_video_26967710.mp4" }
                             ],
@@ -398,7 +398,10 @@
             `;
 
             matches.forEach((m, idx) => {
-                const cover = m.cover_url || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=600&q=80';
+                let cover = m.cover_url || 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=600&q=80';
+                if (cover.startsWith('/')) {
+                    cover = `${this.baseUrl}${cover}`;
+                }
                 const camCount = m.full_videos.length;
                 const clipCount = m.clips.length;
                 
