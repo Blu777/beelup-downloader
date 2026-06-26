@@ -27,6 +27,30 @@ def no_cache(response):
         response.headers["Expires"] = "0"
     return response
 
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Range, X-Chala-Token"
+        response.headers["Access-Control-Expose-Headers"] = "Content-Range, Content-Length, Accept-Ranges"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+@app.before_request
+def handle_preflight():
+    if request.method == "OPTIONS":
+        resp = make_response()
+        origin = request.headers.get("Origin", "*")
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Range, X-Chala-Token"
+        resp.headers["Access-Control-Expose-Headers"] = "Content-Range, Content-Length, Accept-Ranges"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        resp.headers["Access-Control-Max-Age"] = "86400"
+        return resp, 204
+
 # ── Admin auth ────────────────────────────────────────────────────────────────
 ADMIN_PIN  = os.environ.get("ADMIN_PIN", "")
 _AUTH_COOKIE = "bdl_admin"
@@ -353,6 +377,115 @@ def admin_logout():
 @app.route("/api/admin/status")
 def admin_status():
     return jsonify({"is_admin": _is_admin(), "pin_configured": bool(ADMIN_PIN)})
+
+@app.route("/api/public/catalog")
+def public_catalog():
+    """Endpoint público CORS optimizado para que la web de Chala Cup Club consulte y reproduzca videos/clips."""
+    dl_dir = downloader_core.DOWNLOAD_DIR
+    meta_file = os.path.join(dl_dir, "metadata.json")
+    clips_dir = os.path.join(dl_dir, "clips")
+    clips_meta_file = os.path.join(clips_dir, "clips_metadata.json")
+
+    match_meta = _load_json_dict(meta_file)
+    clips_meta = _load_json_dict(clips_meta_file)
+
+    matches = {}
+
+    try:
+        filenames = sorted(os.listdir(dl_dir))
+    except OSError:
+        filenames = []
+
+    for fname in filenames:
+        if not (fname.endswith(".mp4") or fname.endswith(".ts")):
+            continue
+        m = re.search(r"^(?:(\d{4}-\d{2}-\d{2})_)?video_(\w+?)(?:_(central|izq|der))?\.(mp4|ts)$", fname)
+        if not m:
+            continue
+        match_date = m.group(1) or ""
+        match_id   = m.group(2)
+        cam_id     = m.group(3) or ""
+
+        if match_id not in matches:
+            raw = match_meta.get(match_id, "")
+            if isinstance(raw, dict):
+                title = raw.get("title", f"Partido {match_id}")
+                complejo = raw.get("complejo", "")
+                cancha = raw.get("cancha", "")
+            else:
+                title = raw or f"Partido {match_id}"
+                complejo = ""
+                cancha = ""
+            
+            cover_url = ""
+            upper_t = title.upper()
+            if "CONTAINER" in upper_t:
+                cover_url = _COVERS["CONTAINER"]
+            elif "MEGAFUTBOL" in upper_t:
+                cover_url = _COVERS["MEGAFUTBOL"]
+
+            matches[match_id] = {
+                "match_id": match_id,
+                "title": title,
+                "date": match_date,
+                "complejo": complejo,
+                "cancha": cancha,
+                "cover_url": cover_url,
+                "full_videos": [],
+                "clips": []
+            }
+        elif match_date and not matches[match_id]["date"]:
+            matches[match_id]["date"] = match_date
+
+        size_mb = round(os.path.getsize(os.path.join(dl_dir, fname)) / (1024 * 1024), 1)
+        cam_label = _CAM_LABELS.get(cam_id, f"Cámara ({cam_id})" if cam_id else "Cámara única")
+        
+        existing = next((c for c in matches[match_id]["full_videos"] if c["cam_id"] == cam_id), None)
+        if not existing:
+            matches[match_id]["full_videos"].append({
+                "cam_id": cam_id,
+                "label": cam_label,
+                "filename": fname,
+                "stream_url": f"/api/stream/{fname}",
+                "size_mb": size_mb
+            })
+        elif fname.endswith(".mp4") and existing["filename"].endswith(".ts"):
+            existing["filename"] = fname
+            existing["stream_url"] = f"/api/stream/{fname}"
+            existing["size_mb"] = size_mb
+
+    if os.path.isdir(clips_dir):
+        try:
+            c_files = sorted(os.listdir(clips_dir))
+        except OSError:
+            c_files = []
+        for cfname in c_files:
+            if not cfname.endswith(".mp4"):
+                continue
+            cmeta = clips_meta.get(cfname, {})
+            mid = cmeta.get("match_id")
+            if not mid or mid not in matches:
+                continue
+            csize = round(os.path.getsize(os.path.join(clips_dir, cfname)) / (1024 * 1024), 1)
+            cname = cmeta.get("name") or os.path.splitext(cfname)[0]
+            start_ts = cmeta.get("start", 0)
+            end_ts = cmeta.get("end", 0)
+            matches[mid]["clips"].append({
+                "clip_id": cfname,
+                "name": cname,
+                "stream_url": f"/api/clips/stream/{cfname}",
+                "download_url": f"/api/clips/download/{cfname}",
+                "duration_seconds": round(end_ts - start_ts, 1) if end_ts > start_ts else 0,
+                "cam_id": cmeta.get("cam_id", ""),
+                "size_mb": csize
+            })
+
+    catalog = {
+        "generator": "BeelupDownloader-ChalaAPI/2.1.2",
+        "total_matches": len(matches),
+        "matches": list(matches.values())
+    }
+    return jsonify(catalog)
 
 @app.route("/api/videos")
 def list_videos():

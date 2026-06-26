@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chala Cup Replays - Ejemplo de Integración Web</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #030712;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Contenedor donde se montará la galería de replays y clips -->
+    <div id="videoteca-chala"></div>
+
+    <!-- Cargar el SDK/Widget Javascript -->
+    <script src="chala_video_gallery.js"></script>
+
+    <script>
+        // Inicializar galería conectando directamente a tu servidor en producción
+        document.addEventListener('DOMContentLoaded', () => {
+            const container = document.getElementById('videoteca-chala');
+            new ChalaVideoGallery(container, "https://beelup.tiagonatale.com");
+        });
+    </script>
+</body>
+</html>
